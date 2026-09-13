@@ -3,7 +3,6 @@ import os
 import psycopg
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 
@@ -28,3 +27,26 @@ def testar_conexao():
 
     except psycopg.Error as erro:
         return False, f"Erro ao conectar com o PostgreSQL: {erro}"
+
+
+def listar_cursos():
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, codigo, nome
+                FROM curso
+                ORDER BY nome;
+            """)
+            return cursor.fetchall()
+
+
+def listar_matrizes_por_curso(curso_id):
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, curso_id, codigo
+                FROM matriz
+                WHERE curso_id = %s
+                ORDER BY codigo;
+            """, (curso_id,))
+            return cursor.fetchall()
