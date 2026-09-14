@@ -105,7 +105,9 @@ def obter_analise(analise_id):
                     semestre_ano,
                     situacao,
                     procedencia,
-                    data_criacao
+                    data_criacao,
+                    curso_id,
+                    matriz_id
                 FROM analise
                 WHERE id = %s;
             """, (analise_id,))
@@ -140,3 +142,18 @@ def atualizar_analise(
                 procedencia,
                 analise_id
             ))        
+
+def salvar_curso_e_matriz(analise_id, curso_id, matriz_id):
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                UPDATE analise
+                SET
+                    curso_id = %s,
+                    matriz_id = %s
+                WHERE id = %s;
+            """, (
+                curso_id,
+                matriz_id,
+                analise_id
+            ))            
