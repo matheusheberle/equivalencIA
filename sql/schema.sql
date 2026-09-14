@@ -10,3 +10,13 @@ CREATE TABLE matriz (
     codigo VARCHAR(10) NOT NULL,
     UNIQUE (curso_id, codigo)
 );
+
+CREATE TABLE analise (
+    id SERIAL PRIMARY KEY,
+    nome_aluno VARCHAR(150) NOT NULL,
+    ra VARCHAR(30),
+    semestre_ano VARCHAR(20),
+    situacao VARCHAR(100),
+    procedencia VARCHAR(150),
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
