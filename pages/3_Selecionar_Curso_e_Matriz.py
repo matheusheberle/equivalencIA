@@ -1,30 +1,23 @@
 import streamlit as st
 
 from database import (
-    listar_analises,
     listar_cursos,
     listar_matrizes_por_curso,
-    obter_analise,
     salvar_curso_e_matriz,
 )
+from navegacao import apresentar_etapa, ir_para_etapa
 
 
-st.title("Selecionar curso e matriz")
-
-analises = listar_analises()
-
-if not analises:
-    st.warning("Crie uma análise antes de selecionar curso e matriz.")
-    st.stop()
-
-analise_selecionada = st.selectbox(
-    "Selecione a análise",
-    analises,
-    format_func=lambda analise: f"#{analise[0]} — {analise[1]}"
-)
-
-dados_analise = obter_analise(analise_selecionada[0])
+dados_analise = apresentar_etapa(2)
+st.caption("Avançar salva a seleção. Voltar não salva alterações pendentes.")
+if st.button("Voltar"):
+    ir_para_etapa(1)
 cursos = listar_cursos()
+
+if not cursos:
+    st.warning("Nenhum curso foi encontrado no banco de dados.")
+    st.button("Avançar", disabled=True)
+    st.stop()
 
 curso_atual_id = dados_analise[7]
 matriz_atual_id = dados_analise[8]
@@ -48,6 +41,9 @@ curso_selecionado = st.selectbox(
 
 matrizes = listar_matrizes_por_curso(curso_selecionado[0])
 
+if not matrizes:
+    st.warning("Não há matrizes cadastradas para este curso.")
+
 indice_matriz = next(
     (
         indice
@@ -67,7 +63,7 @@ matriz_selecionada = st.selectbox(
     key=f"matriz_{dados_analise[0]}_{curso_selecionado[0]}"
 )
 
-if st.button("Salvar seleção e continuar", type="primary"):
+if st.button("Avançar", type="primary", disabled=not matrizes):
     if matriz_selecionada is None:
         st.error("A matriz curricular é obrigatória para continuar.")
     else:
@@ -76,4 +72,4 @@ if st.button("Salvar seleção e continuar", type="primary"):
             curso_selecionado[0],
             matriz_selecionada[0]
         )
-        st.success("Curso e matriz curricular salvos com sucesso.")
+        ir_para_etapa(3)

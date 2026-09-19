@@ -1,6 +1,7 @@
 import streamlit as st
 
 from database import testar_conexao
+from navegacao import inicializar_fluxo, ir_para_etapa
 
 
 st.set_page_config(
@@ -16,6 +17,14 @@ st.write(
 )
 
 st.divider()
+
+inicializar_fluxo()
+if st.session_state.analise_id is not None:
+    if st.button("Continuar análise ativa", type="primary"):
+        ir_para_etapa(st.session_state.etapa_atual)
+else:
+    if st.button("Iniciar análise", type="primary"):
+        ir_para_etapa(0)
 
 st.subheader("Status do sistema")
 

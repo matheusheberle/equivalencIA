@@ -1,114 +1,62 @@
 import streamlit as st
 
-from database import (
-    atualizar_analise,
-    criar_analise,
-    listar_analises,
-    obter_analise,
-)
+from database import atualizar_analise, criar_analise, listar_analises
+from navegacao import apresentar_etapa, ativar_analise, ir_para_etapa
 
 
-st.title("Nova análise curricular")
+dados = apresentar_etapa(0)
 
-st.subheader("Cadastrar nova análise")
+if dados and st.button("Cadastrar outra análise"):
+    ativar_analise(None)
+    st.rerun()
 
-with st.form("form_nova_analise"):
-    nome_aluno = st.text_input("Nome do aluno *")
-    ra = st.text_input("RA")
-    semestre_ano = st.text_input("Semestre/Ano")
-    situacao = st.text_input("Situação")
-    procedencia = st.text_input("Procedência")
+st.subheader("Editar análise ativa" if dados else "Cadastrar nova análise")
+st.caption("Avançar salva os dados deste formulário antes de continuar.")
 
-    salvar = st.form_submit_button("Salvar e continuar")
+with st.form(f"form_analise_{dados[0] if dados else 'nova'}"):
+    campos = ("Nome do aluno *", "RA", "Semestre/Ano", "Situação", "Procedência")
+    valores = [
+        st.text_input(
+            campo,
+            value=(dados[indice + 1] or "") if dados else "",
+            key=f"analise_{dados[0] if dados else 'nova'}_{indice}",
+        )
+        for indice, campo in enumerate(campos)
+    ]
+    voltar, salvar, avancar = st.columns(3)
+    voltar.form_submit_button("Voltar", disabled=True)
+    salvar_apenas = salvar.form_submit_button("Salvar alterações" if dados else "Salvar análise")
+    continuar = avancar.form_submit_button("Avançar", type="primary")
 
-if salvar:
-    if not nome_aluno.strip():
+if salvar_apenas or continuar:
+    if not valores[0].strip():
         st.error("O nome do aluno é obrigatório.")
     else:
-        analise_id = criar_analise(
-            nome_aluno,
-            ra,
-            semestre_ano,
-            situacao,
-            procedencia
-        )
-        st.success(f"Análise nº {analise_id} criada com sucesso.")
-
+        if dados:
+            atualizar_analise(dados[0], *valores)
+        else:
+            ativar_analise(criar_analise(*valores))
+        if continuar:
+            ir_para_etapa(1)
+        st.rerun()
 
 st.divider()
-st.subheader("Análises cadastradas")
-
-analises = listar_analises()
-
-if not analises:
-    st.info("Nenhuma análise cadastrada.")
-else:
-    st.dataframe(
-        [
-            {
-                "ID": analise[0],
-                "Aluno": analise[1],
-                "RA": analise[2],
-                "Semestre/Ano": analise[3],
-                "Situação": analise[4],
-                "Procedência": analise[5],
-                "Criada em": analise[6]
-            }
-            for analise in analises
-        ],
-        hide_index=True,
-        use_container_width=True
-    )
-
-    analise_selecionada = st.selectbox(
-        "Selecione uma análise para editar",
-        analises,
-        format_func=lambda analise: f"#{analise[0]} — {analise[1]}"
-    )
-
-    dados = obter_analise(analise_selecionada[0])
-
-    st.subheader("Editar análise")
-
-    with st.form("form_editar_analise"):
-        nome_editado = st.text_input(
-            "Nome do aluno *",
-            value=dados[1],
-            key=f"nome_{dados[0]}"
+with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
+    analises = listar_analises()
+    if not analises:
+        st.info("Nenhuma análise cadastrada.")
+    else:
+        st.dataframe(
+            [dict(zip(("ID", "Aluno", "RA", "Semestre/Ano", "Situação", "Procedência", "Criada em"), analise))
+             for analise in analises],
+            hide_index=True,
+            width="stretch",
         )
-        ra_editado = st.text_input(
-            "RA",
-            value=dados[2] or "",
-            key=f"ra_{dados[0]}"
+        selecionada = st.selectbox(
+            "Selecione uma análise",
+            analises,
+            format_func=lambda analise: f"#{analise[0]} — {analise[1]}",
         )
-        semestre_editado = st.text_input(
-            "Semestre/Ano",
-            value=dados[3] or "",
-            key=f"semestre_{dados[0]}"
-        )
-        situacao_editada = st.text_input(
-            "Situação",
-            value=dados[4] or "",
-            key=f"situacao_{dados[0]}"
-        )
-        procedencia_editada = st.text_input(
-            "Procedência",
-            value=dados[5] or "",
-            key=f"procedencia_{dados[0]}"
-        )
-
-        atualizar = st.form_submit_button("Salvar alterações")
-
-    if atualizar:
-        if not nome_editado.strip():
-            st.error("O nome do aluno é obrigatório.")
-        else:
-            atualizar_analise(
-                dados[0],
-                nome_editado,
-                ra_editado,
-                semestre_editado,
-                situacao_editada,
-                procedencia_editada
-            )
-            st.success("Análise atualizada com sucesso.")
+        if st.button("Ativar análise selecionada"):
+            ativar_analise(selecionada[0])
+            st.rerun()
