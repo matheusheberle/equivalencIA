@@ -11,10 +11,16 @@ CREATE TABLE matriz (
     UNIQUE (curso_id, codigo)
 );
 
+CREATE TABLE aluno (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL CONSTRAINT ck_aluno_nome CHECK (nome ~ '[^[:space:]]'),
+    ra VARCHAR(30),
+    CONSTRAINT ck_aluno_ra CHECK (ra IS NULL OR ra ~ '[^[:space:]]')
+);
+
 CREATE TABLE analise (
     id SERIAL PRIMARY KEY,
-    nome_aluno VARCHAR(150) NOT NULL,
-    ra VARCHAR(30),
+    aluno_id INTEGER NOT NULL REFERENCES aluno(id),
     semestre_ano VARCHAR(20),
     situacao VARCHAR(100),
     procedencia VARCHAR(150),
@@ -45,3 +51,5 @@ CHECK (
     OR
     (curso_id IS NOT NULL AND matriz_id IS NOT NULL)
 );
+
+CREATE INDEX idx_analise_aluno_id ON analise (aluno_id);

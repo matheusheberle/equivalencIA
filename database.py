@@ -51,22 +51,66 @@ def listar_matrizes_por_curso(curso_id):
             """, (curso_id,))
             return cursor.fetchall()
 
-def criar_analise(nome_aluno, ra, semestre_ano, situacao, procedencia):
+
+def criar_aluno(nome, ra=None):
+    nome = (nome or "").strip()
+    if not nome:
+        raise ValueError("O nome do aluno é obrigatório.")
+    ra = (ra or "").strip() or None
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO aluno (nome, ra) VALUES (%s, %s) RETURNING id;",
+                (nome, ra),
+            )
+            return cursor.fetchone()[0]
+
+
+def obter_aluno(aluno_id):
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("SELECT id, nome, ra FROM aluno WHERE id = %s;", (aluno_id,))
+            return cursor.fetchone()
+
+
+def listar_alunos():
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("SELECT id, nome, ra FROM aluno ORDER BY nome, id;")
+            return cursor.fetchall()
+
+
+def buscar_alunos_por_nome(termo):
+    termo = (termo or "").strip()
+    if not termo:
+        return []
+    # Trata curingas do LIKE como texto digitado, mantendo a busca por substring.
+    termo = termo.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, nome, ra
+                FROM aluno
+                WHERE nome ILIKE %s ESCAPE '!'
+                ORDER BY nome, id;
+            """, (f"%{termo}%",))
+            return cursor.fetchall()
+
+
+def criar_analise(aluno_id, semestre_ano="", situacao="", procedencia=""):
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO analise (
-                    nome_aluno,
-                    ra,
+                    aluno_id,
                     semestre_ano,
                     situacao,
                     procedencia
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id;
             """, (
-                nome_aluno,
-                ra,
+                aluno_id,
                 semestre_ano,
                 situacao,
                 procedencia
@@ -75,21 +119,19 @@ def criar_analise(nome_aluno, ra, semestre_ano, situacao, procedencia):
             return cursor.fetchone()[0]
 
 
+# Mantém as posições usadas pelas páginas do #021 e acrescenta aluno_id ao fim.
+_SELECT_ANALISE = """
+    SELECT a.id, al.nome, al.ra, a.semestre_ano, a.situacao,
+           a.procedencia, a.data_criacao, a.curso_id, a.matriz_id, a.aluno_id
+    FROM analise a
+    JOIN aluno al ON al.id = a.aluno_id
+"""
+
+
 def listar_analises():
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    id,
-                    nome_aluno,
-                    ra,
-                    semestre_ano,
-                    situacao,
-                    procedencia,
-                    data_criacao
-                FROM analise
-                ORDER BY data_criacao DESC;
-            """)
+            cursor.execute(_SELECT_ANALISE + " ORDER BY a.data_criacao DESC, a.id DESC;")
 
             return cursor.fetchall()
 
@@ -97,28 +139,13 @@ def listar_analises():
 def obter_analise(analise_id):
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    id,
-                    nome_aluno,
-                    ra,
-                    semestre_ano,
-                    situacao,
-                    procedencia,
-                    data_criacao,
-                    curso_id,
-                    matriz_id
-                FROM analise
-                WHERE id = %s;
-            """, (analise_id,))
+            cursor.execute(_SELECT_ANALISE + " WHERE a.id = %s;", (analise_id,))
 
             return cursor.fetchone()
 
 
 def atualizar_analise(
     analise_id,
-    nome_aluno,
-    ra,
     semestre_ano,
     situacao,
     procedencia
@@ -128,20 +155,17 @@ def atualizar_analise(
             cursor.execute("""
                 UPDATE analise
                 SET
-                    nome_aluno = %s,
-                    ra = %s,
                     semestre_ano = %s,
                     situacao = %s,
                     procedencia = %s
                 WHERE id = %s;
             """, (
-                nome_aluno,
-                ra,
                 semestre_ano,
                 situacao,
                 procedencia,
                 analise_id
-            ))        
+            ))
+
 
 def salvar_curso_e_matriz(analise_id, curso_id, matriz_id):
     with obter_conexao() as conexao:
@@ -156,4 +180,4 @@ def salvar_curso_e_matriz(analise_id, curso_id, matriz_id):
                 curso_id,
                 matriz_id,
                 analise_id
-            ))            
+            ))

@@ -12,6 +12,7 @@ ETAPAS = (
 
 
 def inicializar_fluxo():
+    st.session_state.setdefault("aluno_id", None)
     st.session_state.setdefault("analise_id", None)
     st.session_state.setdefault("etapa_atual", 0)
 
@@ -37,6 +38,7 @@ def apresentar_etapa(etapa):
             st.warning("A análise ativa não foi encontrada. Crie ou selecione outra análise.")
 
     if dados:
+        st.session_state.aluno_id = dados[9]
         st.write(f"Análise ativa: {dados[1]} — nº {dados[0]}")
     st.caption(f"Etapa {etapa + 1} de {len(ETAPAS)}")
     st.title(ETAPAS[etapa][0])

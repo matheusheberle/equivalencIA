@@ -12,15 +12,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class FluxoTest(unittest.TestCase):
     def setUp(self):
+        self.alunos = {1: (1, "Ana", "123"), 2: (2, "Bruno", "456")}
         self.analises = {
-            1: (1, "Ana", "123", "2026/2", "Regular", "Externa", None, 10, 100),
-            2: (2, "Bruno", "456", "2026/1", "Regular", "Interna", None, 20, 200),
+            1: (1, "Ana", "123", "2026/2", "Regular", "Externa", None, 10, 100, 1),
+            2: (2, "Bruno", "456", "2026/1", "Regular", "Interna", None, 20, 200, 2),
         }
         self.cursos = [(10, "ADS", "Sistemas"), (20, "ENG", "Engenharia")]
         self.matrizes = {10: [(100, 10, "2024"), (101, 10, "2025")], 20: [(200, 20, "2026")]}
         funcoes = {
             "obter_analise": lambda ident: self.analises.get(ident),
-            "listar_analises": lambda: [a[:7] for a in self.analises.values()],
+            "listar_analises": lambda: list(self.analises.values()),
+            "listar_alunos": lambda: self.fail("A tela não deve carregar todos os alunos"),
+            "obter_aluno": lambda ident: self.alunos.get(ident),
+            "buscar_alunos_por_nome": lambda termo: [
+                aluno for aluno in self.alunos.values() if termo.lower() in aluno[1].lower()
+            ],
+            "criar_aluno": self.criar_aluno,
             "criar_analise": self.criar,
             "atualizar_analise": self.atualizar,
             "listar_cursos": lambda: self.cursos,
@@ -36,16 +43,21 @@ class FluxoTest(unittest.TestCase):
         self.addCleanup(mock.stop)
         self.app = AppTest.from_file(str(ROOT / "app.py")).run()
 
-    def criar(self, *valores):
+    def criar_aluno(self, nome, ra):
+        ident = max(self.alunos) + 1
+        self.alunos[ident] = (ident, nome.strip(), ra.strip() or None)
+        return ident
+
+    def criar(self, aluno_id, *valores):
         ident = max(self.analises) + 1
-        self.analises[ident] = (ident, *valores, None, None, None)
+        self.analises[ident] = (ident, *self.alunos[aluno_id][1:], *valores, None, None, None, aluno_id)
         return ident
 
     def atualizar(self, ident, *valores):
-        self.analises[ident] = (ident, *valores, *self.analises[ident][6:])
+        self.analises[ident] = (*self.analises[ident][:3], *valores, *self.analises[ident][6:])
 
     def salvar_matriz(self, ident, curso, matriz):
-        self.analises[ident] = (*self.analises[ident][:7], curso, matriz)
+        self.analises[ident] = (*self.analises[ident][:7], curso, matriz, self.analises[ident][9])
 
     def clicar(self, label):
         next(b for b in self.app.button if b.label == label).click().run()
@@ -65,7 +77,7 @@ class FluxoTest(unittest.TestCase):
 
     def ativar(self, ident=1):
         self.clicar("Iniciar análise")
-        self.app.selectbox[0].select(self.analises[ident][:7])
+        self.app.selectbox[0].select(self.analises[ident])
         self.clicar("Ativar análise selecionada")
 
     def test_criar_avancar_voltar_e_retomar(self):
@@ -74,7 +86,10 @@ class FluxoTest(unittest.TestCase):
         self.assertTrue(self.app.error)
         self.assertEqual(len(self.analises), 2)
         self.app.text_input[0].input("Carla")
-        self.app.text_input[4].input("Outra instituição")
+        self.clicar("Salvar aluno")
+        self.assertEqual(len(self.analises), 2)
+        self.assertEqual(self.alunos[3], (3, "Carla", None))
+        self.app.text_input[5].input("Outra instituição")
         self.clicar("Avançar")
         self.etapa(1, 3)
         self.clicar("Avançar")
@@ -84,7 +99,7 @@ class FluxoTest(unittest.TestCase):
         self.app.selectbox[1].select(self.matrizes[10][1])
         self.clicar("Avançar")
         self.etapa(3, 3)
-        self.assertEqual(self.analises[3][7:], (10, 101))
+        self.assertEqual(self.analises[3][7:], (10, 101, 3))
         self.assertTrue(next(b for b in self.app.button if b.label == "Avançar").disabled)
         self.clicar("Voltar")
         self.assertEqual(self.app.selectbox[1].value[0], 101)
@@ -94,20 +109,22 @@ class FluxoTest(unittest.TestCase):
         self.clicar("Voltar")
         self.clicar("Voltar")
         self.etapa(0, 3)
-        self.assertEqual(self.app.text_input[0].value, "Carla")
-        self.assertEqual(self.app.text_input[4].value, "Outra instituição")
+        self.assertEqual(self.app.text_input[2].value, "Outra instituição")
+        self.assertTrue(any("Carla" in m.value for m in self.app.markdown))
         self.clicar("Avançar")
         self.assertEqual(len(self.analises), 3)
 
     def test_trocar_analise_e_editar_sem_misturar_dados(self):
         self.ativar()
-        self.app.text_input[0].input("Ana editada")
+        self.app.text_input[0].input("2027/1")
         self.clicar("Salvar alterações")
-        self.assertEqual(self.analises[1][1], "Ana editada")
-        self.app.selectbox[0].select(self.analises[2][:7])
+        self.assertEqual(self.analises[1][3], "2027/1")
+        self.assertEqual(self.alunos[1], (1, "Ana", "123"))
+        self.app.selectbox[0].select(self.analises[2])
         self.clicar("Ativar análise selecionada")
         self.etapa(0, 2)
-        self.assertEqual(self.app.text_input[0].value, "Bruno")
+        self.assertEqual(self.app.text_input[0].value, "2026/1")
+        self.assertTrue(any("Bruno" in m.value for m in self.app.markdown))
         self.clicar("Avançar")
         self.clicar("Avançar")
         self.assertEqual(self.app.selectbox[0].value[0], 20)
@@ -116,14 +133,34 @@ class FluxoTest(unittest.TestCase):
         self.assertIsNone(self.app.selectbox[1].value)
         self.app.selectbox[1].select(self.matrizes[10][0])
         self.clicar("Avançar")
-        self.assertEqual(self.analises[2][7:], (10, 100))
-        self.assertEqual(self.analises[1][7:], (10, 100))
+        self.assertEqual(self.analises[2][7:], (10, 100, 2))
+        self.assertEqual(self.analises[1][7:], (10, 100, 1))
         self.clicar("Voltar")
         self.clicar("Voltar")
         self.clicar("Voltar")
         self.clicar("Cadastrar outra análise")
         self.assertIsNone(self.app.session_state["analise_id"])
         self.assertEqual(self.app.text_input[0].value, "")
+
+    def test_cadastro_com_ra_nome_obrigatorio_e_duas_analises(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input[0].input("   ")
+        self.clicar("Salvar aluno")
+        self.assertTrue(self.app.error)
+        self.assertEqual(len(self.alunos), 2)
+        self.app.text_input[0].input("Daniela")
+        self.app.text_input[1].input("789")
+        self.clicar("Salvar aluno")
+        self.assertEqual(self.alunos[3], (3, "Daniela", "789"))
+        self.assertEqual(len(self.analises), 2)
+        self.clicar("Salvar análise")
+        self.etapa(0, 3)
+        self.clicar("Cadastrar outra análise")
+        self.assertEqual(self.app.session_state["aluno_id"], 3)
+        self.clicar("Avançar")
+        self.etapa(1, 4)
+        self.assertEqual(self.analises[3][9], self.analises[4][9])
+        self.assertEqual(len(self.alunos), 3)
 
     def test_acesso_direto_sem_analise_e_analise_removida(self):
         for pagina in ("3_Selecionar_Curso_e_Matriz", "4_Origem_do_Aproveitamento", "5_Proxima_Etapa"):
@@ -135,6 +172,69 @@ class FluxoTest(unittest.TestCase):
         self.app.switch_page("pages/3_Selecionar_Curso_e_Matriz.py").run()
         self.assertIsNone(self.app.session_state["analise_id"])
         self.assertFalse(self.app.exception)
+
+    def test_busca_seleciona_homonimo_por_id_e_preserva_contexto(self):
+        self.alunos[3] = (3, "Matheus Freitas", None)
+        self.alunos[4] = (4, "Matheus Freitas", "987")
+        self.clicar("Iniciar análise")
+        self.assertFalse([b for b in self.app.button if b.label == "Selecionar"])
+        self.app.text_input(key="busca_aluno").input("mAtHeUs").run()
+        self.assertEqual(len([b for b in self.app.button if b.label == "Selecionar"]), 2)
+        self.assertTrue(any(m.value == "RA não informado" for m in self.app.markdown))
+        self.assertTrue(any(m.value == "RA: 987" for m in self.app.markdown))
+        self.app.button(key="selecionar_aluno_4").click().run()
+        self.assertFalse(self.app.exception)
+        self.assertEqual(self.app.session_state["aluno_id"], 4)
+        self.app.text_input(key="busca_aluno").input("Inexistente").run()
+        self.assertTrue(any(i.value == "Nenhum aluno encontrado." for i in self.app.info))
+        self.assertFalse([b for b in self.app.button if b.label == "Selecionar"])
+        self.assertEqual(self.app.session_state["aluno_id"], 4)
+        self.app.switch_page("app.py").run()
+        self.clicar("Iniciar análise")
+        self.assertEqual(self.app.session_state["aluno_id"], 4)
+        self.clicar("Avançar")
+        self.etapa(1, 3)
+        self.assertEqual(self.analises[3][9], 4)
+        self.clicar("Voltar")
+        self.assertEqual(self.app.session_state["aluno_id"], 4)
+        self.clicar("Cadastrar outra análise")
+        self.clicar("Limpar seleção")
+        self.assertIsNone(self.app.session_state["aluno_id"])
+        self.clicar("Avançar")
+        self.assertTrue(self.app.error)
+
+    def test_busca_sem_resultado_e_aluno_removido(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ninguém").run()
+        self.assertTrue(any(i.value == "Nenhum aluno encontrado." for i in self.app.info))
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="selecionar_aluno_1").click().run()
+        del self.alunos[1]
+        self.app.run()
+        self.assertFalse(self.app.exception)
+        self.assertTrue(self.app.warning)
+        self.assertIsNone(self.app.session_state["aluno_id"])
+
+    def test_selecionar_aluno_existente_cria_apenas_analises(self):
+        alunos_antes = self.alunos.copy()
+        with patch("database.criar_aluno") as criar_aluno:
+            self.clicar("Iniciar análise")
+            self.app.text_input(key="busca_aluno").input("Bruno").run()
+            self.app.button(key="selecionar_aluno_2").click().run()
+            self.assertEqual(self.app.session_state["aluno_id"], 2)
+            self.clicar("Salvar análise")
+            self.etapa(0, 3)
+            self.assertEqual(self.analises[3][9], 2)
+            self.assertEqual(self.alunos, alunos_antes)
+            tabela = self.app.dataframe[0].value
+            linha = tabela[tabela["ID da análise"] == 3].iloc[0]
+            self.assertEqual(linha["ID do aluno"], 2)
+            self.clicar("Cadastrar outra análise")
+            self.clicar("Avançar")
+            self.etapa(1, 4)
+            self.assertEqual(self.analises[4][9], 2)
+            self.assertEqual(self.alunos, alunos_antes)
+            criar_aluno.assert_not_called()
 
     def test_sem_cursos_ou_matrizes_permite_voltar(self):
         self.ativar()
