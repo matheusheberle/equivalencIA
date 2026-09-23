@@ -1,7 +1,8 @@
 import streamlit as st
+import psycopg
 
 from database import salvar_origem_aproveitamento
-from navegacao import apresentar_etapa, ir_para_etapa
+from navegacao import apresentar_etapa, confirmar_salvamento, ir_para_etapa
 
 
 situacoes = ("Concluído", "Incompleto", "Trancado")
@@ -45,12 +46,17 @@ if salvar_apenas or continuar:
     if situacao_origem not in situacoes:
         st.error("Selecione a situação do curso de origem.")
     else:
-        salvar_origem_aproveitamento(
-            dados[0],
-            curso_origem,
-            situacao_origem,
-            procedencia,
-        )
-        if continuar:
-            ir_para_etapa(2)
-        st.rerun()
+        try:
+            salvar_origem_aproveitamento(
+                dados[0],
+                curso_origem,
+                situacao_origem,
+                procedencia,
+            )
+        except psycopg.Error:
+            st.error("Não foi possível confirmar o salvamento da origem do aproveitamento. Tente salvar novamente.")
+        else:
+            confirmar_salvamento("Origem do aproveitamento salva com sucesso.", 2 if continuar else 1)
+            if continuar:
+                ir_para_etapa(2)
+            st.rerun()

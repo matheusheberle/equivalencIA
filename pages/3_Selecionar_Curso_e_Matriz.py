@@ -1,18 +1,29 @@
 import streamlit as st
+import psycopg
 
 from database import (
     listar_cursos,
     listar_matrizes_por_curso,
     salvar_curso_e_matriz,
 )
-from navegacao import apresentar_etapa, ir_para_etapa
+from navegacao import apresentar_etapa, confirmar_salvamento, ir_para_etapa
 
 
 dados_analise = apresentar_etapa(2)
 st.caption("Avançar salva a seleção. Voltar não salva alterações pendentes.")
 if st.button("Voltar"):
     ir_para_etapa(1)
-cursos = listar_cursos()
+try:
+    cursos = listar_cursos()
+except psycopg.Error:
+    # Preserva os campos quando a leitura impede renderizar o restante da tela.
+    for chave in list(st.session_state):
+        if chave.startswith(('curso_', 'matriz_')):
+            st.session_state[chave] = st.session_state[chave]
+    st.error("Não foi possível carregar os cursos. Tente novamente.")
+    if st.button("Tentar novamente"):
+        st.rerun()
+    st.stop()
 
 if not cursos:
     st.warning("Nenhum curso foi encontrado no banco de dados.")
@@ -39,7 +50,17 @@ curso_selecionado = st.selectbox(
     key=f"curso_{dados_analise[0]}"
 )
 
-matrizes = listar_matrizes_por_curso(curso_selecionado[0])
+try:
+    matrizes = listar_matrizes_por_curso(curso_selecionado[0])
+except psycopg.Error:
+    # Preserva os campos quando a leitura impede renderizar o restante da tela.
+    for chave in list(st.session_state):
+        if chave.startswith(('matriz_',)):
+            st.session_state[chave] = st.session_state[chave]
+    st.error("Não foi possível carregar as matrizes. Tente novamente.")
+    if st.button("Tentar novamente"):
+        st.rerun()
+    st.stop()
 
 if not matrizes:
     st.warning("Não há matrizes cadastradas para este curso.")
@@ -67,9 +88,14 @@ if st.button("Avançar", type="primary", disabled=not matrizes):
     if matriz_selecionada is None:
         st.error("A matriz curricular é obrigatória para continuar.")
     else:
-        salvar_curso_e_matriz(
-            dados_analise[0],
-            curso_selecionado[0],
-            matriz_selecionada[0]
-        )
-        ir_para_etapa(3)
+        try:
+            salvar_curso_e_matriz(
+                dados_analise[0],
+                curso_selecionado[0],
+                matriz_selecionada[0]
+            )
+        except psycopg.Error:
+            st.error("Não foi possível confirmar o salvamento do curso e da matriz. Tente salvar novamente.")
+        else:
+            confirmar_salvamento("Curso e matriz salvos com sucesso.", 3)
+            ir_para_etapa(3)

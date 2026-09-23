@@ -1,11 +1,12 @@
 import streamlit as st
+import psycopg
 
 from database import (
     atualizar_aluno, atualizar_analise, buscar_alunos_por_nome, criar_aluno,
     criar_analise, listar_analises, obter_aluno,
     normalizar_semestre_ano_ingresso,
 )
-from navegacao import apresentar_etapa, ativar_analise, ir_para_etapa
+from navegacao import apresentar_etapa, ativar_analise, confirmar_salvamento, ir_para_etapa
 
 
 dados = apresentar_etapa(0)
@@ -19,10 +20,13 @@ if dados:
     st.write(f"Aluno: {dados[1]} — cadastro nº {aluno_id}")
     st.write(f"RA: {dados[2] or 'Não informado'}")
 else:
+    if st.session_state.pop("limpar_cadastro_aluno", False):
+        st.session_state.cadastro_nome = ""
+        st.session_state.cadastro_ra = ""
     with st.expander("Cadastrar aluno"):
-        with st.form("form_aluno", clear_on_submit=True):
-            nome = st.text_input("Nome do aluno *", max_chars=150)
-            ra = st.text_input("RA (opcional)", max_chars=30)
+        with st.form("form_aluno"):
+            nome = st.text_input("Nome do aluno *", max_chars=150, key="cadastro_nome")
+            ra = st.text_input("RA (opcional)", max_chars=30, key="cadastro_ra")
             cadastrar = st.form_submit_button("Salvar aluno")
         if cadastrar:
             nome = nome.strip()
@@ -30,13 +34,31 @@ else:
             if not nome:
                 st.error("O nome do aluno é obrigatório.")
             else:
-                st.session_state.aluno_id = criar_aluno(nome, ra)
-                st.success("Aluno cadastrado. Você já pode iniciar uma análise para ele.")
+                try:
+                    st.session_state.aluno_id = criar_aluno(nome, ra)
+                except psycopg.Error:
+                    st.error("Não foi possível confirmar o cadastro do aluno. Consulte a busca antes de tentar salvar novamente.")
+                else:
+                    st.session_state.limpar_cadastro_aluno = True
+                    st.session_state.aluno_cadastrado = True
+                    st.rerun()
+        if st.session_state.pop("aluno_cadastrado", False):
+            st.success("Aluno cadastrado. Você já pode iniciar uma análise para ele.")
 
     st.subheader("Buscar aluno")
     termo = st.text_input("Nome ou parte do nome", key="busca_aluno").strip()
     if termo:
-        resultados = buscar_alunos_por_nome(termo)
+        try:
+            resultados = buscar_alunos_por_nome(termo)
+        except psycopg.Error:
+            # Preserva os campos quando a leitura impede renderizar o restante da tela.
+            for chave in list(st.session_state):
+                if chave.startswith(('nome_edicao_', 'ra_edicao_', 'analise_')):
+                    st.session_state[chave] = st.session_state[chave]
+            st.error("Não foi possível carregar os resultados da busca. Tente novamente.")
+            if st.button("Tentar novamente"):
+                st.rerun()
+            st.stop()
         st.subheader("Resultados")
         if not resultados:
             st.info("Nenhum aluno encontrado.")
@@ -58,7 +80,17 @@ else:
 
     editando_aluno_id = st.session_state.get("editando_aluno_id")
     if editando_aluno_id is not None:
-        aluno_edicao = obter_aluno(editando_aluno_id)
+        try:
+            aluno_edicao = obter_aluno(editando_aluno_id)
+        except psycopg.Error:
+            # Preserva os campos quando a leitura impede renderizar o restante da tela.
+            for chave in list(st.session_state):
+                if chave.startswith(('nome_edicao_', 'ra_edicao_', 'analise_')):
+                    st.session_state[chave] = st.session_state[chave]
+            st.error("Não foi possível carregar o aluno para editar. Tente novamente.")
+            if st.button("Tentar novamente"):
+                st.rerun()
+            st.stop()
         if aluno_edicao is None:
             st.session_state.editando_aluno_id = None
             st.warning("O aluno não foi encontrado. Atualize a busca e tente novamente.")
@@ -89,16 +121,32 @@ else:
                 ra_edicao = ra_edicao.strip() or None
                 if not nome_edicao:
                     st.error("O nome do aluno é obrigatório.")
-                elif atualizar_aluno(editando_aluno_id, nome_edicao, ra_edicao):
-                    st.session_state.aluno_id = editando_aluno_id
-                    st.session_state.editando_aluno_id = None
-                    st.session_state.aluno_atualizado = True
-                    st.rerun()
                 else:
-                    st.error("O aluno não foi encontrado. Atualize a busca e tente novamente.")
+                    try:
+                        atualizado = atualizar_aluno(editando_aluno_id, nome_edicao, ra_edicao)
+                    except psycopg.Error:
+                        st.error("Não foi possível confirmar as alterações do aluno. Tente salvar novamente.")
+                    else:
+                        if atualizado:
+                            st.session_state.aluno_id = editando_aluno_id
+                            st.session_state.editando_aluno_id = None
+                            st.session_state.aluno_atualizado = True
+                            st.rerun()
+                        else:
+                            st.error("O aluno não foi encontrado. Atualize a busca e tente novamente.")
 
     aluno_id = st.session_state.aluno_id
-    aluno = obter_aluno(aluno_id) if aluno_id is not None else None
+    try:
+        aluno = obter_aluno(aluno_id) if aluno_id is not None else None
+    except psycopg.Error:
+        # Preserva os campos quando a leitura impede renderizar o restante da tela.
+        for chave in list(st.session_state):
+            if chave.startswith(('analise_',)):
+                st.session_state[chave] = st.session_state[chave]
+        st.error("Não foi possível carregar o aluno selecionado. Tente novamente.")
+        if st.button("Tentar novamente"):
+            st.rerun()
+        st.stop()
     if aluno:
         if st.session_state.pop("aluno_atualizado", False):
             st.success("Cadastro atualizado.")
@@ -136,17 +184,30 @@ if salvar_apenas or continuar:
         except ValueError as erro:
             st.error(str(erro))
         else:
-            if dados:
-                atualizar_analise(dados[0], semestre_ano)
+            try:
+                if dados:
+                    atualizar_analise(dados[0], semestre_ano)
+                else:
+                    nova_analise_id = criar_analise(aluno_id, semestre_ano)
+            except psycopg.Error:
+                st.error("Não foi possível confirmar o salvamento da análise. Consulte as análises cadastradas antes de tentar salvar novamente.")
             else:
-                ativar_analise(criar_analise(aluno_id, semestre_ano))
-            if continuar:
-                ir_para_etapa(1)
-            st.rerun()
+                if not dados:
+                    ativar_analise(nova_analise_id)
+                confirmar_salvamento("Dados da análise salvos com sucesso.", 1 if continuar else 0)
+                if continuar:
+                    ir_para_etapa(1)
+                st.rerun()
 
 st.divider()
 with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
-    analises = listar_analises()
+    try:
+        analises = listar_analises()
+    except psycopg.Error:
+        st.error("Não foi possível carregar as análises cadastradas. Tente novamente.")
+        if st.button("Tentar novamente"):
+            st.rerun()
+        st.stop()
     if not analises:
         st.info("Nenhuma análise cadastrada.")
     else:

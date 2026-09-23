@@ -1,11 +1,18 @@
 import streamlit as st
+import psycopg
 
 from database import listar_cursos, listar_matrizes_por_curso
 
 
 st.title("Cursos e matrizes curriculares")
 
-cursos = listar_cursos()
+try:
+    cursos = listar_cursos()
+except psycopg.Error:
+    st.error("Não foi possível carregar os cursos. Tente novamente.")
+    if st.button("Tentar novamente"):
+        st.rerun()
+    st.stop()
 
 if not cursos:
     st.warning("Nenhum curso foi encontrado no banco de dados.")
@@ -16,7 +23,13 @@ else:
         format_func=lambda curso: f"{curso[1]} - {curso[2]}"
     )
 
-    matrizes = listar_matrizes_por_curso(curso_selecionado[0])
+    try:
+        matrizes = listar_matrizes_por_curso(curso_selecionado[0])
+    except psycopg.Error:
+        st.error("Não foi possível carregar as matrizes. Tente novamente.")
+        if st.button("Tentar novamente"):
+            st.rerun()
+        st.stop()
 
     st.subheader(f"Matrizes de {curso_selecionado[2]}")
 

@@ -26,8 +26,8 @@ def testar_conexao():
 
         return True, "Conexão com PostgreSQL realizada com sucesso."
 
-    except psycopg.Error as erro:
-        return False, f"Erro ao conectar com o PostgreSQL: {erro}"
+    except psycopg.Error:
+        return False, "Não foi possível conectar ao banco de dados. Tente novamente."
 
 
 def listar_cursos():

@@ -62,6 +62,13 @@ class ValidacaoIngressoTest(unittest.TestCase):
 
 
 class ValidacaoAlunoTest(unittest.TestCase):
+    def test_erro_conexao_nao_expoe_detalhes(self):
+        with patch("database.obter_conexao", side_effect=psycopg.OperationalError("password=SEGREDO")):
+            sucesso, mensagem = database.testar_conexao()
+        self.assertFalse(sucesso)
+        self.assertNotIn("SEGREDO", mensagem)
+        self.assertIn("Tente novamente", mensagem)
+
     def test_busca_vazia_nao_acessa_banco(self):
         with patch("database.obter_conexao") as conexao:
             for termo in (None, "", " \t\n"):

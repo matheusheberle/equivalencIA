@@ -3,6 +3,7 @@
 from pathlib import Path
 import unittest
 from unittest.mock import patch
+import psycopg
 
 from streamlit.testing.v1 import AppTest
 
@@ -86,6 +87,214 @@ class FluxoTest(unittest.TestCase):
         self.clicar("Iniciar análise")
         self.app.selectbox[0].select(self.analises[ident])
         self.clicar("Ativar análise selecionada")
+
+    def conferir_erro_banco(self):
+        self.assertFalse(self.app.exception)
+        self.assertTrue(self.app.error)
+        self.assertFalse(self.app.success)
+        self.assertNotIn("SEGREDO", " ".join(e.value for e in self.app.error))
+
+    def test_confirmacoes_salvar_e_avancar_aparecem_uma_vez(self):
+        self.ativar()
+        self.clicar("Salvar alterações")
+        self.assertEqual([m.value for m in self.app.success], ["Dados da análise salvos com sucesso."])
+        self.app.run()
+        self.assertFalse(self.app.success)
+        self.clicar("Avançar")
+        self.etapa(1, 1)
+        self.assertEqual([m.value for m in self.app.success], ["Dados da análise salvos com sucesso."])
+        self.clicar("Salvar alterações")
+        self.etapa(1, 1)
+        self.assertEqual([m.value for m in self.app.success], ["Origem do aproveitamento salva com sucesso."])
+        self.clicar("Avançar")
+        self.etapa(2, 1)
+        self.assertEqual([m.value for m in self.app.success], ["Origem do aproveitamento salva com sucesso."])
+        self.clicar("Avançar")
+        self.etapa(3, 1)
+        self.assertEqual([m.value for m in self.app.success], ["Curso e matriz salvos com sucesso."])
+        self.clicar("Voltar")
+        self.assertFalse(self.app.success)
+
+    def test_confirmacao_criacao_nao_reaparece_em_outra_analise(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="selecionar_aluno_1").click().run()
+        self.clicar("Salvar análise")
+        self.assertEqual([m.value for m in self.app.success], ["Dados da análise salvos com sucesso."])
+        self.app.selectbox[0].select(self.analises[2])
+        self.clicar("Ativar análise selecionada")
+        self.etapa(0, 2)
+        self.assertFalse(self.app.success)
+        self.app.run()
+        self.assertFalse(self.app.success)
+
+    def test_validacao_apos_sucesso_nao_exibe_confirmacao_antiga(self):
+        self.ativar()
+        self.clicar("Salvar alterações")
+        self.assertTrue(self.app.success)
+        self.app.text_input(key="analise_1_semestre_ano").input("3/2027")
+        self.clicar("Salvar alterações")
+        self.assertTrue(self.app.error)
+        self.assertFalse(self.app.success)
+        self.app.text_input(key="analise_1_semestre_ano").input("1/2027")
+        dados = list(self.analises[1])
+        dados[4] = None
+        self.analises[1] = tuple(dados)
+        self.clicar("Avançar")
+        self.assertIsNone(self.app.selectbox(key="situacao_origem_1").value)
+        self.clicar("Salvar alterações")
+        self.assertTrue(self.app.error)
+        self.assertFalse(self.app.success)
+
+    def test_confirmacao_pendente_descartada_em_erro_de_leitura(self):
+        self.ativar()
+        self.app.session_state["confirmacao_salvamento"] = (1, 0, "Dados da análise salvos com sucesso.")
+        with patch("navegacao.obter_analise", side_effect=psycopg.OperationalError("SEGREDO")):
+            self.app.run()
+            self.conferir_erro_banco()
+        self.clicar("Tentar novamente")
+        self.assertFalse(self.app.success)
+
+    def test_confirmacao_pendente_nao_aparece_em_outro_contexto(self):
+        self.ativar()
+        for analise_id, etapa in ((2, 0), (1, 2)):
+            with self.subTest(analise_id=analise_id, etapa=etapa):
+                self.app.session_state["confirmacao_salvamento"] = (analise_id, etapa, "Mensagem antiga")
+                self.app.run()
+                self.assertFalse(self.app.success)
+                self.assertNotIn("confirmacao_salvamento", self.app.session_state)
+
+    def test_falha_leitura_analise_preserva_contexto_e_formulario(self):
+        self.ativar()
+        self.app.text_input(key="analise_1_semestre_ano").input("1/2027")
+        with patch("navegacao.obter_analise", side_effect=psycopg.OperationalError("SEGREDO")):
+            self.clicar("Avançar")
+            self.conferir_erro_banco()
+            self.assertEqual(self.app.session_state["analise_id"], 1)
+            self.assertEqual(self.app.session_state["aluno_id"], 1)
+            self.assertEqual(self.app.session_state["etapa_atual"], 0)
+        self.clicar("Tentar novamente")
+        self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "1/2027")
+        self.clicar("Avançar")
+        self.etapa(1, 1)
+
+    def test_falha_criar_analise_preserva_ingresso_e_permite_repetir(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="selecionar_aluno_1").click().run()
+        self.app.text_input(key="analise_nova_semestre_ano").input("2/2027")
+        with patch("database.criar_analise", side_effect=psycopg.OperationalError("SEGREDO")):
+            self.clicar("Avançar")
+            self.conferir_erro_banco()
+            self.etapa(0, None)
+            self.assertEqual(len(self.analises), 2)
+            self.assertEqual(self.app.text_input(key="analise_nova_semestre_ano").value, "2/2027")
+        self.clicar("Avançar")
+        self.etapa(1, 3)
+        self.assertEqual(self.analises[3][3], "2/2027")
+
+    def test_falha_atualizar_analise_nao_avanca(self):
+        self.ativar()
+        self.app.text_input(key="analise_1_semestre_ano").input("1/2027")
+        with patch("database.atualizar_analise", side_effect=psycopg.IntegrityError("SEGREDO")):
+            for botao in ("Salvar alterações", "Avançar"):
+                self.clicar(botao)
+                self.conferir_erro_banco()
+                self.etapa(0, 1)
+                self.assertEqual(self.analises[1][3], "2/2026")
+                self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "1/2027")
+        self.clicar("Avançar")
+        self.etapa(1, 1)
+        self.assertEqual(self.analises[1][3], "1/2027")
+
+    def test_falha_salvar_origem_nao_avanca_e_permite_repetir(self):
+        self.ativar()
+        self.clicar("Avançar")
+        self.app.text_input(key="curso_origem_1").input("Novo curso")
+        self.app.text_input(key="procedencia_1").input("Nova instituição")
+        self.app.selectbox(key="situacao_origem_1").select("Trancado")
+        with patch("database.salvar_origem_aproveitamento", side_effect=psycopg.OperationalError("SEGREDO")):
+            for botao in ("Salvar alterações", "Avançar"):
+                self.clicar(botao)
+                self.conferir_erro_banco()
+                self.etapa(1, 1)
+                self.assertEqual(self.analises[1][10], "Engenharia")
+                self.assertEqual(self.app.text_input(key="curso_origem_1").value, "Novo curso")
+                self.assertEqual(self.app.text_input(key="procedencia_1").value, "Nova instituição")
+                self.assertEqual(self.app.selectbox(key="situacao_origem_1").value, "Trancado")
+        self.clicar("Avançar")
+        self.etapa(2, 1)
+        self.assertEqual(self.analises[1][10], "Novo curso")
+
+    def test_falha_salvar_destino_nao_avanca_e_permite_repetir(self):
+        self.ativar()
+        self.clicar("Avançar")
+        self.clicar("Avançar")
+        self.app.selectbox[1].select(self.matrizes[10][1])
+        with patch("database.salvar_curso_e_matriz", side_effect=psycopg.IntegrityError("SEGREDO")):
+            self.clicar("Avançar")
+            self.conferir_erro_banco()
+            self.etapa(2, 1)
+            self.assertEqual(self.analises[1][8], 100)
+            self.assertEqual(self.app.selectbox[1].value[0], 101)
+        self.clicar("Avançar")
+        self.etapa(3, 1)
+        self.assertEqual(self.analises[1][8], 101)
+
+    def test_falha_cadastro_aluno_preserva_campos(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="cadastro_nome").input("Carla")
+        self.app.text_input(key="cadastro_ra").input("789")
+        with patch("database.criar_aluno", side_effect=psycopg.OperationalError("SEGREDO")):
+            self.clicar("Salvar aluno")
+            self.conferir_erro_banco()
+            self.assertEqual(len(self.alunos), 2)
+            self.assertEqual(self.app.text_input(key="cadastro_nome").value, "Carla")
+            self.assertEqual(self.app.text_input(key="cadastro_ra").value, "789")
+        self.clicar("Salvar aluno")
+        self.assertEqual(self.alunos[3], (3, "Carla", "789"))
+        self.assertEqual(self.app.text_input(key="cadastro_nome").value, "")
+
+    def test_falha_edicao_aluno_preserva_campos(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="editar_aluno_1").click().run()
+        self.app.text_input(key="nome_edicao_1").input("Ana atualizada")
+        with patch("database.atualizar_aluno", side_effect=psycopg.OperationalError("SEGREDO")):
+            self.clicar("Salvar alterações")
+            self.conferir_erro_banco()
+            self.assertEqual(self.app.text_input(key="nome_edicao_1").value, "Ana atualizada")
+            self.assertEqual(self.app.session_state["editando_aluno_id"], 1)
+        with patch("database.atualizar_aluno", return_value=True) as atualizar:
+            self.clicar("Salvar alterações")
+            atualizar.assert_called_once_with(1, "Ana atualizada", "123")
+            self.assertTrue(self.app.success)
+
+    def test_falhas_leitura_cursos_e_matrizes_permitem_repetir(self):
+        self.ativar()
+        for pagina in ("1_Cursos_e_Matrizes", "3_Selecionar_Curso_e_Matriz"):
+            for funcao in ("listar_cursos", "listar_matrizes_por_curso"):
+                with self.subTest(pagina=pagina, funcao=funcao):
+                    with patch(f"database.{funcao}", side_effect=psycopg.OperationalError("SEGREDO")):
+                        self.app.switch_page(f"pages/{pagina}.py").run()
+                        self.conferir_erro_banco()
+                        self.assertEqual(self.app.session_state["analise_id"], 1)
+                    self.clicar("Tentar novamente")
+                    self.assertFalse(self.app.error)
+
+    def test_falhas_busca_aluno_e_listagem_nao_limpam_selecao(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="selecionar_aluno_1").click().run()
+        for funcao in ("buscar_alunos_por_nome", "obter_aluno", "listar_analises"):
+            with self.subTest(funcao=funcao):
+                with patch(f"database.{funcao}", side_effect=psycopg.OperationalError("SEGREDO")):
+                    self.app.run()
+                    self.conferir_erro_banco()
+                    self.assertEqual(self.app.session_state["aluno_id"], 1)
+                    self.assertFalse(self.app.info)
+                self.clicar("Tentar novamente")
+                self.assertFalse(self.app.error)
 
     def test_ingresso_invalido_nao_cria_analise_e_permite_corrigir(self):
         self.clicar("Iniciar análise")
