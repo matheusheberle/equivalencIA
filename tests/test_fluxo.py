@@ -94,6 +94,105 @@ class FluxoTest(unittest.TestCase):
         self.assertFalse(self.app.success)
         self.assertNotIn("SEGREDO", " ".join(e.value for e in self.app.error))
 
+    def test_menu_bloqueia_origem_nao_salva_mesmo_com_sessao_preenchida(self):
+        dados = list(self.analises[1])
+        dados[4] = None
+        self.analises[1] = tuple(dados)
+        self.ativar()
+        for pagina in ("3_Selecionar_Curso_e_Matriz", "5_Proxima_Etapa"):
+            self.app.session_state["etapa_atual"] = 3
+            self.app.session_state["situacao_origem_1"] = "Concluído"
+            self.app.switch_page(f"pages/{pagina}.py").run()
+            self.assertFalse(self.app.exception)
+            self.assertTrue(self.app.warning)
+            self.assertFalse(self.app.success)
+            self.assertFalse(self.app.selectbox)
+            self.assertFalse(self.app.info)
+            self.assertEqual(self.app.session_state["etapa_atual"], 1)
+        self.clicar("Ir para Origem do Aproveitamento")
+        self.etapa(1, 1)
+        self.app.selectbox(key="situacao_origem_1").select("Incompleto")
+        self.clicar("Salvar alterações")
+        self.assertTrue(self.app.success)
+        self.app.switch_page("pages/3_Selecionar_Curso_e_Matriz.py").run()
+        self.etapa(2, 1)
+        self.assertTrue(self.app.selectbox)
+        self.assertFalse(self.app.warning)
+
+    def test_menu_exige_destino_salvo_e_permite_retorno(self):
+        dados = list(self.analises[1])
+        dados[7:9] = (None, None)
+        self.analises[1] = tuple(dados)
+        self.ativar()
+        self.app.switch_page("pages/3_Selecionar_Curso_e_Matriz.py").run()
+        self.app.selectbox[1].select(self.matrizes[10][0]).run()
+        self.app.switch_page("pages/5_Proxima_Etapa.py").run()
+        self.assertFalse(self.app.exception)
+        self.assertTrue(self.app.warning)
+        self.assertFalse(self.app.info)
+        self.assertEqual(self.app.session_state["etapa_atual"], 2)
+        self.clicar("Ir para Curso e Matriz")
+        self.app.selectbox[1].select(self.matrizes[10][1])
+        self.clicar("Avançar")
+        self.etapa(3, 1)
+        self.assertTrue(self.app.success)
+        self.assertTrue(self.app.info)
+        self.clicar("Voltar")
+        self.assertEqual(self.app.selectbox[1].value[0], 101)
+        self.clicar("Voltar")
+        self.assertEqual(self.app.text_input(key="curso_origem_1").value, "Engenharia")
+
+    def test_retomada_menu_aceita_campos_opcionais_vazios(self):
+        self.alunos[1] = (1, "Ana", None)
+        dados = list(self.analises[1])
+        dados[2:4] = (None, "")
+        dados[5] = None
+        dados[10] = None
+        self.analises[1] = tuple(dados)
+        self.ativar()
+        # Os dados salvos liberam a etapa, mesmo sem percorrer o wizard nesta sessão.
+        self.app.switch_page("pages/5_Proxima_Etapa.py").run()
+        self.assertFalse(self.app.exception)
+        self.assertFalse(self.app.warning)
+        self.assertTrue(self.app.info)
+        self.app.switch_page("pages/4_Origem_do_Aproveitamento.py").run()
+        self.etapa(1, 1)
+        self.assertEqual(self.app.text_input(key="curso_origem_1").value, "")
+        self.clicar("Voltar")
+        self.etapa(0, 1)
+        self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "")
+
+    def test_menu_bloqueia_situacao_legada_e_ingresso_invalido(self):
+        self.ativar()
+        dados = list(self.analises[1])
+        dados[4] = "Regular"
+        self.analises[1] = tuple(dados)
+        self.app.switch_page("pages/3_Selecionar_Curso_e_Matriz.py").run()
+        self.assertTrue(self.app.warning)
+        self.assertEqual(self.app.session_state["etapa_atual"], 1)
+        dados[3] = "2026/2"
+        self.analises[1] = tuple(dados)
+        self.app.switch_page("pages/4_Origem_do_Aproveitamento.py").run()
+        self.assertFalse(self.app.exception)
+        self.assertTrue(self.app.warning)
+        self.assertEqual(self.app.session_state["etapa_atual"], 0)
+        self.clicar("Ir para Nova Análise")
+        self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "2026/2")
+
+    def test_menu_falha_leitura_nao_libera_etapas(self):
+        self.ativar()
+        for pagina in ("4_Origem_do_Aproveitamento", "3_Selecionar_Curso_e_Matriz", "5_Proxima_Etapa"):
+            with self.subTest(pagina=pagina):
+                with patch("navegacao.obter_analise", side_effect=psycopg.OperationalError("SEGREDO")):
+                    self.app.switch_page(f"pages/{pagina}.py").run()
+                    self.conferir_erro_banco()
+                    self.assertFalse(self.app.text_input)
+                    self.assertFalse(self.app.selectbox)
+                    self.assertFalse(self.app.info)
+                    self.assertEqual(self.app.session_state["analise_id"], 1)
+                self.clicar("Tentar novamente")
+                self.assertFalse(self.app.error)
+
     def test_confirmacoes_salvar_e_avancar_aparecem_uma_vez(self):
         self.ativar()
         self.clicar("Salvar alterações")

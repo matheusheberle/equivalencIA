@@ -2,10 +2,10 @@ import streamlit as st
 import psycopg
 
 from database import salvar_origem_aproveitamento
-from navegacao import apresentar_etapa, confirmar_salvamento, ir_para_etapa
+from navegacao import SITUACOES_ORIGEM, apresentar_etapa, confirmar_salvamento, ir_para_etapa
 
 
-situacoes = ("Concluído", "Incompleto", "Trancado")
+situacoes = SITUACOES_ORIGEM
 dados = apresentar_etapa(1)
 st.caption("Informe a formação anterior do aluno. Não informe aqui o período de encaixe na UNIPAR.")
 

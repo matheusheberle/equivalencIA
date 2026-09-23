@@ -128,6 +128,16 @@ o contexto permanece na sessão; **Continuar análise ativa** no Início retoma
 a última etapa visitada. Acesso direto a uma etapa sem análise ativa oferece
 um botão para criar/selecionar uma análise.
 
+Todas as páginas do fluxo verificam os pré-requisitos nos dados salvos, inclusive
+quando abertas pelo menu lateral. Origem exige uma análise ativa; Curso e Matriz
+exige também uma situação de origem salva (Concluído, Incompleto ou Trancado);
+Próxima etapa exige ainda curso e matriz salvos. O ingresso continua opcional,
+mas um valor preenchido fora do formato precisa ser corrigido na primeira etapa.
+RA, curso de origem e procedência não são exigidos para liberar etapas.
+Campos apenas preenchidos na tela não liberam o acesso. O bloqueio orienta à
+primeira etapa pendente, que também passa a ser o destino de Continuar análise
+ativa. As etapas anteriores permanecem acessíveis para consulta e correção.
+
 O contexto (`analise_id`, `aluno_id` e `etapa_atual`, com índice iniciado em zero) existe
 somente na sessão Streamlit. Em uma nova sessão ou após recarregar a conexão,
 pode ser necessário selecionar novamente a análise. Os dados salvos continuam

@@ -1,7 +1,10 @@
 import streamlit as st
 import psycopg
 
-from database import obter_analise
+from database import normalizar_semestre_ano_ingresso, obter_analise
+
+
+SITUACOES_ORIGEM = ("Concluído", "Incompleto", "Trancado")
 
 
 ETAPAS = (
@@ -63,12 +66,33 @@ def apresentar_etapa(etapa):
     st.caption(f"Etapa {etapa + 1} de {len(ETAPAS)}")
     st.title(ETAPAS[etapa][0])
     st.caption(" → ".join(nome for nome, _ in ETAPAS))
-    if dados and confirmacao and confirmacao[:2] == (dados[0], etapa):
-        st.success(confirmacao[2])
-
     if etapa > 0 and dados is None:
         st.warning("Crie ou selecione uma análise para continuar.")
         if st.button("Ir para Nova Análise"):
             ir_para_etapa(0)
         st.stop()
+
+    pendencia = None
+    mensagem = None
+    if etapa > 0 and dados:
+        try:
+            normalizar_semestre_ano_ingresso(dados[3])
+        except ValueError:
+            pendencia = 0
+            mensagem = "Corrija e salve o Semestre/Ano de ingresso em Nova Análise (1/2027 ou 2/2027), ou deixe o campo vazio."
+        if pendencia is None and etapa > 1 and dados[4] not in SITUACOES_ORIGEM:
+            pendencia = 1
+            mensagem = "Selecione e salve a situação do curso de origem em Origem do Aproveitamento antes de continuar."
+        if pendencia is None and etapa > 2 and (dados[7] is None or dados[8] is None):
+            pendencia = 2
+            mensagem = "Selecione e salve o curso e a matriz em Curso e Matriz antes de continuar."
+    if pendencia is not None:
+        st.session_state.etapa_atual = pendencia
+        st.warning(mensagem)
+        if st.button(f"Ir para {ETAPAS[pendencia][0]}"):
+            ir_para_etapa(pendencia)
+        st.stop()
+
+    if dados and confirmacao and confirmacao[:2] == (dados[0], etapa):
+        st.success(confirmacao[2])
     return dados
