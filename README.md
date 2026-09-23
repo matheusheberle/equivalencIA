@@ -106,7 +106,14 @@ exibidos, sem edição. **Cadastrar outra análise** abre um novo cadastro de an
 sem excluir a anterior.
 
 **Avançar** salva o formulário da etapa atual antes de navegar. Nova Análise
-guarda o semestre/ano da análise. Origem do Aproveitamento reúne curso de
+guarda o **Semestre/Ano de ingresso** do aluno na UNIPAR, no formato `1/2027`
+ou `2/2027` (semestre 1 ou 2 e ano com quatro dígitos). O campo continua opcional;
+quando preenchido, é validado na tela e antes de qualquer gravação no banco.
+Valores antigos são exibidos como estão, sem conversão automática, e precisam
+ser corrigidos para o novo formato ao salvar esse formulário. A coluna
+`semestre_ano` foi mantida, sem migração de dados. Esse campo não define o
+período de encaixe, que pertence a uma etapa posterior à análise curricular.
+Origem do Aproveitamento reúne curso de
 origem, situação (Concluído, Incompleto ou Trancado) e procedência, vinculados
 à análise ativa. O período de encaixe na UNIPAR não é solicitado nessa etapa.
 Curso e Matriz guarda a seleção antes de avançar. **Voltar** retorna sem salvar
@@ -157,7 +164,7 @@ Na primeira etapa, **Cadastrar aluno** salva somente o aluno. **Buscar aluno**
 permite reutilizar um cadastro existente. **Salvar análise** ou **Avançar** cria
 a análise vinculada. Para criar uma segunda análise do mesmo aluno, use
 **Cadastrar outra análise**: o aluno permanece selecionado e pode ser substituído
-por outro resultado da busca. Semestre/Ano, curso de origem, situação de origem
+por outro resultado da busca. Semestre/Ano de ingresso, curso de origem, situação de origem
 e procedência pertencem à análise.
 O cadastro de aluno não tem edição direta.
 

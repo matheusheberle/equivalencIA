@@ -3,6 +3,7 @@ import streamlit as st
 from database import (
     atualizar_aluno, atualizar_analise, buscar_alunos_por_nome, criar_aluno,
     criar_analise, listar_analises, obter_aluno,
+    normalizar_semestre_ano_ingresso,
 )
 from navegacao import apresentar_etapa, ativar_analise, ir_para_etapa
 
@@ -115,8 +116,10 @@ st.caption("Avançar salva os dados deste formulário antes de continuar.")
 
 with st.form(f"form_analise_{dados[0] if dados else 'nova'}"):
     semestre_ano = st.text_input(
-        "Semestre/Ano",
+        "Semestre/Ano de ingresso",
         value=(dados[3] or "") if dados else "",
+        placeholder="1/2027 ou 2/2027",
+        help="Semestre e ano de ingresso do aluno na UNIPAR. O período de encaixe será definido após a análise curricular.",
         key=f"analise_{dados[0] if dados else 'nova'}_semestre_ano",
     )
     voltar, salvar, avancar = st.columns(3)
@@ -128,13 +131,18 @@ if salvar_apenas or continuar:
     if aluno_id is None:
         st.error("Cadastre ou selecione um aluno para iniciar a análise.")
     else:
-        if dados:
-            atualizar_analise(dados[0], semestre_ano.strip())
+        try:
+            semestre_ano = normalizar_semestre_ano_ingresso(semestre_ano)
+        except ValueError as erro:
+            st.error(str(erro))
         else:
-            ativar_analise(criar_analise(aluno_id, semestre_ano.strip()))
-        if continuar:
-            ir_para_etapa(1)
-        st.rerun()
+            if dados:
+                atualizar_analise(dados[0], semestre_ano)
+            else:
+                ativar_analise(criar_analise(aluno_id, semestre_ano))
+            if continuar:
+                ir_para_etapa(1)
+            st.rerun()
 
 st.divider()
 with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
@@ -149,7 +157,7 @@ with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
                     "ID do aluno": analise[9],
                     "Aluno": analise[1],
                     "RA": analise[2],
-                    "Semestre/Ano": analise[3],
+                    "Semestre/Ano de ingresso": analise[3],
                     "Curso de origem": analise[10],
                     "Situação": analise[4],
                     "Procedência": analise[5],

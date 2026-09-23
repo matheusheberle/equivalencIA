@@ -1,4 +1,5 @@
 import os
+import re
 
 import psycopg
 from dotenv import load_dotenv
@@ -113,7 +114,18 @@ def buscar_alunos_por_nome(termo):
             return cursor.fetchall()
 
 
+def normalizar_semestre_ano_ingresso(valor):
+    valor = (valor or "").strip()
+    if valor and re.fullmatch(r"[12]/[0-9]{4}", valor) is None:
+        raise ValueError(
+            "Informe o Semestre/Ano de ingresso no formato 1/2027 ou 2/2027 "
+            "(semestre 1 ou 2 e ano com quatro dígitos)."
+        )
+    return valor
+
+
 def criar_analise(aluno_id, semestre_ano=""):
+    semestre_ano = normalizar_semestre_ano_ingresso(semestre_ano)
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute("""
@@ -158,6 +170,7 @@ def obter_analise(analise_id):
 
 
 def atualizar_analise(analise_id, semestre_ano):
+    semestre_ano = normalizar_semestre_ano_ingresso(semestre_ano)
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute("""

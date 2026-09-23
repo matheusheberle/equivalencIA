@@ -14,8 +14,8 @@ class FluxoTest(unittest.TestCase):
     def setUp(self):
         self.alunos = {1: (1, "Ana", "123"), 2: (2, "Bruno", "456")}
         self.analises = {
-            1: (1, "Ana", "123", "2026/2", "Concluído", "Externa", None, 10, 100, 1, "Engenharia"),
-            2: (2, "Bruno", "456", "2026/1", "Incompleto", "Interna", None, 20, 200, 2, "Sistemas"),
+            1: (1, "Ana", "123", "2/2026", "Concluído", "Externa", None, 10, 100, 1, "Engenharia"),
+            2: (2, "Bruno", "456", "1/2026", "Incompleto", "Interna", None, 20, 200, 2, "Sistemas"),
         }
         self.cursos = [(10, "ADS", "Sistemas"), (20, "ENG", "Engenharia")]
         self.matrizes = {10: [(100, 10, "2024"), (101, 10, "2025")], 20: [(200, 20, "2026")]}
@@ -87,6 +87,43 @@ class FluxoTest(unittest.TestCase):
         self.app.selectbox[0].select(self.analises[ident])
         self.clicar("Ativar análise selecionada")
 
+    def test_ingresso_invalido_nao_cria_analise_e_permite_corrigir(self):
+        self.clicar("Iniciar análise")
+        self.app.text_input(key="busca_aluno").input("Ana").run()
+        self.app.button(key="selecionar_aluno_1").click().run()
+        campo = self.app.text_input(key="analise_nova_semestre_ano")
+        self.assertEqual(campo.label, "Semestre/Ano de ingresso")
+        with patch("database.criar_analise") as criar:
+            for botao in ("Salvar análise", "Avançar"):
+                self.app.text_input(key="analise_nova_semestre_ano").input("3/2027")
+                self.clicar(botao)
+                self.assertIn("1/2027 ou 2/2027", self.app.error[0].value)
+                self.assertIsNone(self.app.session_state["analise_id"])
+            criar.assert_not_called()
+        self.app.text_input(key="analise_nova_semestre_ano").input("2/2027")
+        self.clicar("Salvar análise")
+        self.assertEqual(self.analises[3][3], "2/2027")
+        self.assertEqual(self.app.dataframe[0].value.iloc[2]["Semestre/Ano de ingresso"], "2/2027")
+
+    def test_ingresso_legado_preservado_ate_correcao_explicita(self):
+        original = list(self.analises[1])
+        original[3] = "2026/2"
+        self.analises[1] = tuple(original)
+        self.ativar()
+        self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "2026/2")
+        with patch("database.atualizar_analise") as atualizar:
+            for botao in ("Salvar alterações", "Avançar"):
+                self.clicar(botao)
+                self.assertTrue(self.app.error)
+                self.assertEqual(self.analises[1], tuple(original))
+                self.etapa(0, 1)
+            atualizar.assert_not_called()
+        self.app.text_input(key="analise_1_semestre_ano").input("2/2026")
+        self.clicar("Avançar")
+        self.etapa(1, 1)
+        self.assertEqual(self.analises[1][3], "2/2026")
+        self.assertEqual(self.analises[1][4:], tuple(original[4:]))
+
     def test_criar_avancar_voltar_e_retomar(self):
         self.clicar("Iniciar análise")
         self.clicar("Avançar")
@@ -126,14 +163,14 @@ class FluxoTest(unittest.TestCase):
 
     def test_trocar_analise_e_editar_sem_misturar_dados(self):
         self.ativar()
-        self.app.text_input[0].input("2027/1")
+        self.app.text_input[0].input("1/2027")
         self.clicar("Salvar alterações")
-        self.assertEqual(self.analises[1][3], "2027/1")
+        self.assertEqual(self.analises[1][3], "1/2027")
         self.assertEqual(self.alunos[1], (1, "Ana", "123"))
         self.app.selectbox[0].select(self.analises[2])
         self.clicar("Ativar análise selecionada")
         self.etapa(0, 2)
-        self.assertEqual(self.app.text_input[0].value, "2026/1")
+        self.assertEqual(self.app.text_input[0].value, "1/2026")
         self.assertTrue(any("Bruno" in m.value for m in self.app.markdown))
         self.clicar("Avançar")
         self.clicar("Avançar")

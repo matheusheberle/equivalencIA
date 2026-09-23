@@ -43,6 +43,24 @@ CREATE TABLE analise (
 """
 
 
+class ValidacaoIngressoTest(unittest.TestCase):
+    def test_formato_invalido_nao_acessa_banco(self):
+        with patch("database.obter_conexao") as conexao:
+            for valor in ("0/2027", "3/2027", "2027/1", "01/2027", "1/27",
+                          "2/20270", "1-2027", "1/abcd", "1/２０２７", "x" * 21):
+                for operacao in (database.criar_analise, database.atualizar_analise):
+                    with self.subTest(valor=valor, operacao=operacao.__name__):
+                        with self.assertRaisesRegex(ValueError, "1/2027 ou 2/2027"):
+                            operacao(1, valor)
+            conexao.assert_not_called()
+
+    def test_formatos_validos_e_campo_opcional(self):
+        for valor, esperado in (("1/2027", "1/2027"), (" 2/2027 ", "2/2027"),
+                                (None, ""), ("", ""), ("   ", "")):
+            with self.subTest(valor=valor):
+                self.assertEqual(database.normalizar_semestre_ano_ingresso(valor), esperado)
+
+
 class ValidacaoAlunoTest(unittest.TestCase):
     def test_busca_vazia_nao_acessa_banco(self):
         with patch("database.obter_conexao") as conexao:
@@ -92,11 +110,11 @@ class PostgreSQLTest(unittest.TestCase):
         self.assertIsNone(database.obter_aluno(99999))
         self.assertEqual(len(database.listar_alunos()), 3)
 
-        primeira = database.criar_analise(com_ra, "2026/1")
+        primeira = database.criar_analise(com_ra, "1/2026")
         database.salvar_origem_aproveitamento(
             primeira, "Engenharia de Software", "Concluído", "Externa"
         )
-        segunda = database.criar_analise(com_ra, "2026/2")
+        segunda = database.criar_analise(com_ra, "2/2026")
         vinculos = self.conexao.execute(
             "SELECT aluno_id, count(*) FROM analise GROUP BY aluno_id"
         ).fetchall()
@@ -104,10 +122,10 @@ class PostgreSQLTest(unittest.TestCase):
         self.assertEqual(database.obter_analise(primeira)[1:3], ("Ana D'Ávila", "123"))
         self.assertEqual(database.obter_analise(segunda)[9], com_ra)
         self.assertEqual(len(database.listar_analises()), 2)
-        database.atualizar_analise(primeira, "2027/1")
-        self.assertEqual(database.obter_analise(primeira)[3:6], ("2027/1", "Concluído", "Externa"))
+        database.atualizar_analise(primeira, "1/2027")
+        self.assertEqual(database.obter_analise(primeira)[3:6], ("1/2027", "Concluído", "Externa"))
         self.assertEqual(database.obter_analise(primeira)[10], "Engenharia de Software")
-        self.assertEqual(database.obter_analise(segunda)[3], "2026/2")
+        self.assertEqual(database.obter_analise(segunda)[3], "2/2026")
         self.assertEqual(database.obter_aluno(com_ra)[1], "Ana D'Ávila")
 
         for nome in (None, "", " \t\n"):
