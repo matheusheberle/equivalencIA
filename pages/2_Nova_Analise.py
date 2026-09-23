@@ -1,8 +1,8 @@
 import streamlit as st
 
 from database import (
-    atualizar_analise, buscar_alunos_por_nome, criar_aluno, criar_analise,
-    listar_analises, obter_aluno,
+    atualizar_aluno, atualizar_analise, buscar_alunos_por_nome, criar_aluno,
+    criar_analise, listar_analises, obter_aluno,
 )
 from navegacao import apresentar_etapa, ativar_analise, ir_para_etapa
 
@@ -41,18 +41,66 @@ else:
             st.info("Nenhum aluno encontrado.")
         for ident, nome, ra in resultados:
             with st.container(border=True):
-                st.write(nome)
+                st.write(f"**{nome}**")
                 st.write(f"RA: {ra}" if ra else "RA não informado")
                 st.caption(f"Cadastro nº {ident}")
-                if st.button("Selecionar", key=f"selecionar_aluno_{ident}"):
+                selecionar, editar = st.columns(2)
+                if selecionar.button("Selecionar", key=f"selecionar_aluno_{ident}"):
                     st.session_state.aluno_id = ident
+                    st.session_state.editando_aluno_id = None
+                    st.rerun()
+                if editar.button("Editar", key=f"editar_aluno_{ident}"):
+                    st.session_state.editando_aluno_id = ident
                     st.rerun()
     else:
         st.info("Digite o nome ou parte do nome para buscar um aluno.")
 
+    editando_aluno_id = st.session_state.get("editando_aluno_id")
+    if editando_aluno_id is not None:
+        aluno_edicao = obter_aluno(editando_aluno_id)
+        if aluno_edicao is None:
+            st.session_state.editando_aluno_id = None
+            st.warning("O aluno não foi encontrado. Atualize a busca e tente novamente.")
+        else:
+            st.subheader(f"Editar aluno nº {aluno_edicao[0]}")
+            with st.form(f"form_editar_aluno_{aluno_edicao[0]}"):
+                nome_edicao = st.text_input(
+                    "Nome do aluno *",
+                    value=aluno_edicao[1],
+                    max_chars=150,
+                    key=f"nome_edicao_{aluno_edicao[0]}",
+                )
+                ra_edicao = st.text_input(
+                    "RA (opcional)",
+                    value=aluno_edicao[2] or "",
+                    max_chars=30,
+                    key=f"ra_edicao_{aluno_edicao[0]}",
+                )
+                salvar_edicao, cancelar_edicao = st.columns(2)
+                salvar_aluno = salvar_edicao.form_submit_button("Salvar alterações")
+                cancelar_aluno = cancelar_edicao.form_submit_button("Cancelar edição")
+
+            if cancelar_aluno:
+                st.session_state.editando_aluno_id = None
+                st.rerun()
+            if salvar_aluno:
+                nome_edicao = nome_edicao.strip()
+                ra_edicao = ra_edicao.strip() or None
+                if not nome_edicao:
+                    st.error("O nome do aluno é obrigatório.")
+                elif atualizar_aluno(editando_aluno_id, nome_edicao, ra_edicao):
+                    st.session_state.aluno_id = editando_aluno_id
+                    st.session_state.editando_aluno_id = None
+                    st.session_state.aluno_atualizado = True
+                    st.rerun()
+                else:
+                    st.error("O aluno não foi encontrado. Atualize a busca e tente novamente.")
+
     aluno_id = st.session_state.aluno_id
     aluno = obter_aluno(aluno_id) if aluno_id is not None else None
     if aluno:
+        if st.session_state.pop("aluno_atualizado", False):
+            st.success("Cadastro atualizado.")
         st.write(f"Aluno selecionado: {aluno[1]} — cadastro nº {aluno[0]}")
         st.write(f"RA: {aluno[2]}" if aluno[2] else "RA não informado")
         if st.button("Limpar seleção"):

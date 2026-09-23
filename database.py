@@ -52,11 +52,16 @@ def listar_matrizes_por_curso(curso_id):
             return cursor.fetchall()
 
 
-def criar_aluno(nome, ra=None):
+def _normalizar_dados_aluno(nome, ra):
     nome = (nome or "").strip()
     if not nome:
         raise ValueError("O nome do aluno é obrigatório.")
     ra = (ra or "").strip() or None
+    return nome, ra
+
+
+def criar_aluno(nome, ra=None):
+    nome, ra = _normalizar_dados_aluno(nome, ra)
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute(
@@ -64,6 +69,17 @@ def criar_aluno(nome, ra=None):
                 (nome, ra),
             )
             return cursor.fetchone()[0]
+
+
+def atualizar_aluno(aluno_id, nome, ra=None):
+    nome, ra = _normalizar_dados_aluno(nome, ra)
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                "UPDATE aluno SET nome = %s, ra = %s WHERE id = %s RETURNING id;",
+                (nome, ra, aluno_id),
+            )
+            return cursor.fetchone() is not None
 
 
 def obter_aluno(aluno_id):
