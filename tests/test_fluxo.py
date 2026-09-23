@@ -46,7 +46,7 @@ class FluxoTest(unittest.TestCase):
 
     def criar_aluno(self, nome, ra):
         ident = max(self.alunos) + 1
-        self.alunos[ident] = (ident, nome.strip(), ra.strip() or None)
+        self.alunos[ident] = (ident, nome.strip(), (ra or "").strip() or None)
         return ident
 
     def criar(self, aluno_id, *valores):
