@@ -105,11 +105,16 @@ passa a editar os dados específicos da análise ativa. Nome e RA são somente
 exibidos, sem edição. **Cadastrar outra análise** abre um novo cadastro de análise,
 sem excluir a anterior.
 
-**Avançar** salva o formulário de Nova Análise ou a seleção de Curso e Matriz
-antes de navegar. **Voltar** recupera os dados já salvos, sem salvar edições
-pendentes. O primeiro Voltar e o último Avançar ficam desabilitados.
-Origem do Aproveitamento e Próxima etapa são telas provisórias; os campos
-Situação e Procedência permanecem no formulário original.
+**Avançar** salva o formulário da etapa atual antes de navegar. Nova Análise
+guarda o semestre/ano da análise. Origem do Aproveitamento reúne curso de
+origem, situação (Concluído, Incompleto ou Trancado) e procedência, vinculados
+à análise ativa. O período de encaixe na UNIPAR não é solicitado nessa etapa.
+Curso e Matriz guarda a seleção antes de avançar. **Voltar** retorna sem salvar
+edições pendentes.
+
+Para atualizar um banco existente para os campos de origem, execute uma vez
+`sql/migrations/023_origem_aproveitamento.sql` após `022_separar_aluno.sql`. Em um
+banco novo, `sql/schema.sql` já contém a estrutura atual.
 
 O menu lateral continua disponível. Ao visitar Início ou Cursos e Matrizes,
 o contexto permanece na sessão; **Continuar análise ativa** no Início retoma
@@ -152,8 +157,8 @@ Na primeira etapa, **Cadastrar aluno** salva somente o aluno. **Buscar aluno**
 permite reutilizar um cadastro existente. **Salvar análise** ou **Avançar** cria
 a análise vinculada. Para criar uma segunda análise do mesmo aluno, use
 **Cadastrar outra análise**: o aluno permanece selecionado e pode ser substituído
-por outro resultado da busca. Os campos
-Semestre/Ano, Situação e Procedência continuam pertencendo à análise.
+por outro resultado da busca. Semestre/Ano, curso de origem, situação de origem
+e procedência pertencem à análise.
 O cadastro de aluno não tem edição direta.
 
 ### Atualizar um PostgreSQL existente (#021 → #022)
@@ -180,6 +185,9 @@ da instalação PostgreSQL). Eles solicitarão a senha, sem colocá-la no comand
    `ROLLBACK;` antes de corrigir os dados e tentar novamente.
 
 3. Reinicie `streamlit run app.py` somente após a migração concluir com `COMMIT`.
+
+Depois de aplicar `022_separar_aluno.sql`, atualize os bancos existentes uma vez
+com `psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/023_origem_aproveitamento.sql`.
 
 A migração usa uma transação e bloqueia `analise` durante a execução. Preserva
 IDs, datas, dados da análise e vínculos de curso/matriz. Cada análise antiga

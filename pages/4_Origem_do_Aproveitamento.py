@@ -1,14 +1,56 @@
 import streamlit as st
 
+from database import salvar_origem_aproveitamento
 from navegacao import apresentar_etapa, ir_para_etapa
 
 
-apresentar_etapa(1)
-st.info("Etapa de Origem do Aproveitamento ainda não implementada.")
-st.write("Os campos atuais de Situação e Procedência continuam em Nova Análise.")
+situacoes = ("Concluído", "Incompleto", "Trancado")
+dados = apresentar_etapa(1)
+st.caption("Informe a formação anterior do aluno. Não informe aqui o período de encaixe na UNIPAR.")
 
-voltar, avancar = st.columns(2)
-if voltar.button("Voltar"):
+with st.form(f"form_origem_{dados[0]}"):
+    with st.container(border=True):
+        st.subheader("Origem do Aproveitamento")
+        curso_origem = st.text_input(
+            "Curso de origem",
+            value=dados[10] or "",
+            max_chars=150,
+            key=f"curso_origem_{dados[0]}",
+        )
+        situacao_atual = dados[4]
+        indice_situacao = situacoes.index(situacao_atual) if situacao_atual in situacoes else None
+        situacao_origem = st.selectbox(
+            "Situação do curso de origem",
+            situacoes,
+            index=indice_situacao,
+            placeholder="Selecione uma situação",
+            key=f"situacao_origem_{dados[0]}",
+        )
+        procedencia = st.text_input(
+            "Instituição/faculdade de procedência",
+            value=dados[5] or "",
+            max_chars=150,
+            key=f"procedencia_{dados[0]}",
+        )
+
+    voltar, salvar, avancar = st.columns(3)
+    voltar_clicked = voltar.form_submit_button("Voltar")
+    salvar_apenas = salvar.form_submit_button("Salvar alterações")
+    continuar = avancar.form_submit_button("Avançar", type="primary")
+
+if voltar_clicked:
     ir_para_etapa(0)
-if avancar.button("Avançar", type="primary"):
-    ir_para_etapa(2)
+
+if salvar_apenas or continuar:
+    if situacao_origem not in situacoes:
+        st.error("Selecione a situação do curso de origem.")
+    else:
+        salvar_origem_aproveitamento(
+            dados[0],
+            curso_origem,
+            situacao_origem,
+            procedencia,
+        )
+        if continuar:
+            ir_para_etapa(2)
+        st.rerun()

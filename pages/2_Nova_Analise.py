@@ -24,7 +24,9 @@ else:
             ra = st.text_input("RA (opcional)", max_chars=30)
             cadastrar = st.form_submit_button("Salvar aluno")
         if cadastrar:
-            if not nome.strip():
+            nome = nome.strip()
+            ra = ra.strip() or None
+            if not nome:
                 st.error("O nome do aluno é obrigatório.")
             else:
                 st.session_state.aluno_id = criar_aluno(nome, ra)
@@ -64,15 +66,11 @@ st.subheader("Dados da análise ativa" if dados else "Iniciar análise para o al
 st.caption("Avançar salva os dados deste formulário antes de continuar.")
 
 with st.form(f"form_analise_{dados[0] if dados else 'nova'}"):
-    campos = ("Semestre/Ano", "Situação", "Procedência")
-    valores = [
-        st.text_input(
-            campo,
-            value=(dados[indice + 3] or "") if dados else "",
-            key=f"analise_{dados[0] if dados else 'nova'}_{indice}",
-        )
-        for indice, campo in enumerate(campos)
-    ]
+    semestre_ano = st.text_input(
+        "Semestre/Ano",
+        value=(dados[3] or "") if dados else "",
+        key=f"analise_{dados[0] if dados else 'nova'}_semestre_ano",
+    )
     voltar, salvar, avancar = st.columns(3)
     voltar.form_submit_button("Voltar", disabled=True)
     salvar_apenas = salvar.form_submit_button("Salvar alterações" if dados else "Salvar análise")
@@ -83,9 +81,9 @@ if salvar_apenas or continuar:
         st.error("Cadastre ou selecione um aluno para iniciar a análise.")
     else:
         if dados:
-            atualizar_analise(dados[0], *valores)
+            atualizar_analise(dados[0], semestre_ano.strip())
         else:
-            ativar_analise(criar_analise(aluno_id, *valores))
+            ativar_analise(criar_analise(aluno_id, semestre_ano.strip()))
         if continuar:
             ir_para_etapa(1)
         st.rerun()
@@ -104,6 +102,7 @@ with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
                     "Aluno": analise[1],
                     "RA": analise[2],
                     "Semestre/Ano": analise[3],
+                    "Curso de origem": analise[10],
                     "Situação": analise[4],
                     "Procedência": analise[5],
                     "Criada em": analise[6],

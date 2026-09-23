@@ -20,6 +20,11 @@ MIGRACAO = (ROOT / "sql/migrations/022_separar_aluno.sql").read_text(encoding="u
 MIGRACAO_TESTE = "\n".join(
     linha for linha in MIGRACAO.splitlines() if linha.strip() not in ("BEGIN;", "COMMIT;")
 )
+MIGRACAO_ORIGEM = (ROOT / "sql/migrations/023_origem_aproveitamento.sql").read_text(encoding="utf-8")
+MIGRACAO_ORIGEM_TESTE = "\n".join(
+    linha for linha in MIGRACAO_ORIGEM.splitlines()
+    if linha.strip() not in ("BEGIN;", "COMMIT;")
+)
 
 SCHEMA_021 = """
 CREATE TABLE curso (id SERIAL PRIMARY KEY, codigo VARCHAR(10) UNIQUE NOT NULL,
@@ -87,7 +92,10 @@ class PostgreSQLTest(unittest.TestCase):
         self.assertIsNone(database.obter_aluno(99999))
         self.assertEqual(len(database.listar_alunos()), 3)
 
-        primeira = database.criar_analise(com_ra, "2026/1", "Regular", "Externa")
+        primeira = database.criar_analise(com_ra, "2026/1")
+        database.salvar_origem_aproveitamento(
+            primeira, "Engenharia de Software", "Concluído", "Externa"
+        )
         segunda = database.criar_analise(com_ra, "2026/2")
         vinculos = self.conexao.execute(
             "SELECT aluno_id, count(*) FROM analise GROUP BY aluno_id"
@@ -96,8 +104,9 @@ class PostgreSQLTest(unittest.TestCase):
         self.assertEqual(database.obter_analise(primeira)[1:3], ("Ana D'Ávila", "123"))
         self.assertEqual(database.obter_analise(segunda)[9], com_ra)
         self.assertEqual(len(database.listar_analises()), 2)
-        database.atualizar_analise(primeira, "2027/1", "Nova situação", "Interna")
-        self.assertEqual(database.obter_analise(primeira)[3:6], ("2027/1", "Nova situação", "Interna"))
+        database.atualizar_analise(primeira, "2027/1")
+        self.assertEqual(database.obter_analise(primeira)[3:6], ("2027/1", "Concluído", "Externa"))
+        self.assertEqual(database.obter_analise(primeira)[10], "Engenharia de Software")
         self.assertEqual(database.obter_analise(segunda)[3], "2026/2")
         self.assertEqual(database.obter_aluno(com_ra)[1], "Ana D'Ávila")
 
@@ -187,6 +196,7 @@ class PostgreSQLTest(unittest.TestCase):
         """)
         antes = self.conexao.execute("SELECT * FROM analise ORDER BY id").fetchall()
         self.conexao.execute(MIGRACAO_TESTE)
+        self.conexao.execute(MIGRACAO_ORIGEM_TESTE)
         for original in antes:
             atual = database.obter_analise(original[0])
             self.assertEqual(atual[:2], original[:2])
@@ -205,6 +215,7 @@ class PostgreSQLTest(unittest.TestCase):
     def test_migracao_vazia(self):
         self.conexao.execute(SCHEMA_021)
         self.conexao.execute(MIGRACAO_TESTE)
+        self.conexao.execute(MIGRACAO_ORIGEM_TESTE)
         self.assertEqual(database.listar_analises(), [])
         ident = database.criar_aluno("Novo aluno")
         self.assertEqual(database.obter_analise(database.criar_analise(ident))[9], ident)

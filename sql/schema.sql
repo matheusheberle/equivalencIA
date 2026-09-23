@@ -22,7 +22,8 @@ CREATE TABLE analise (
     id SERIAL PRIMARY KEY,
     aluno_id INTEGER NOT NULL REFERENCES aluno(id),
     semestre_ano VARCHAR(20),
-    situacao VARCHAR(100),
+    curso_origem VARCHAR(150),
+    situacao_origem VARCHAR(100),
     procedencia VARCHAR(150),
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

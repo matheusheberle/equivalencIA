@@ -14,8 +14,8 @@ class FluxoTest(unittest.TestCase):
     def setUp(self):
         self.alunos = {1: (1, "Ana", "123"), 2: (2, "Bruno", "456")}
         self.analises = {
-            1: (1, "Ana", "123", "2026/2", "Regular", "Externa", None, 10, 100, 1),
-            2: (2, "Bruno", "456", "2026/1", "Regular", "Interna", None, 20, 200, 2),
+            1: (1, "Ana", "123", "2026/2", "Concluído", "Externa", None, 10, 100, 1, "Engenharia"),
+            2: (2, "Bruno", "456", "2026/1", "Incompleto", "Interna", None, 20, 200, 2, "Sistemas"),
         }
         self.cursos = [(10, "ADS", "Sistemas"), (20, "ENG", "Engenharia")]
         self.matrizes = {10: [(100, 10, "2024"), (101, 10, "2025")], 20: [(200, 20, "2026")]}
@@ -30,6 +30,7 @@ class FluxoTest(unittest.TestCase):
             "criar_aluno": self.criar_aluno,
             "criar_analise": self.criar,
             "atualizar_analise": self.atualizar,
+            "salvar_origem_aproveitamento": self.salvar_origem,
             "listar_cursos": lambda: self.cursos,
             "listar_matrizes_por_curso": lambda ident: self.matrizes[ident],
             "salvar_curso_e_matriz": self.salvar_matriz,
@@ -50,14 +51,20 @@ class FluxoTest(unittest.TestCase):
 
     def criar(self, aluno_id, *valores):
         ident = max(self.analises) + 1
-        self.analises[ident] = (ident, *self.alunos[aluno_id][1:], *valores, None, None, None, aluno_id)
+        self.analises[ident] = (ident, *self.alunos[aluno_id][1:], *valores, None, None, None, None, None, aluno_id, None)
         return ident
 
     def atualizar(self, ident, *valores):
-        self.analises[ident] = (*self.analises[ident][:3], *valores, *self.analises[ident][6:])
+        self.analises[ident] = (*self.analises[ident][:3], *valores, *self.analises[ident][4:])
+
+    def salvar_origem(self, ident, curso_origem, situacao, procedencia):
+        dados = list(self.analises[ident])
+        dados[4:6] = (situacao, procedencia)
+        dados[10] = curso_origem
+        self.analises[ident] = tuple(dados)
 
     def salvar_matriz(self, ident, curso, matriz):
-        self.analises[ident] = (*self.analises[ident][:7], curso, matriz, self.analises[ident][9])
+        self.analises[ident] = (*self.analises[ident][:7], curso, matriz, *self.analises[ident][9:])
 
     def clicar(self, label):
         next(b for b in self.app.button if b.label == label).click().run()
@@ -89,9 +96,11 @@ class FluxoTest(unittest.TestCase):
         self.clicar("Salvar aluno")
         self.assertEqual(len(self.analises), 2)
         self.assertEqual(self.alunos[3], (3, "Carla", None))
-        self.app.text_input[5].input("Outra instituição")
         self.clicar("Avançar")
         self.etapa(1, 3)
+        self.app.text_input(key="curso_origem_3").input("Engenharia")
+        self.app.selectbox(key="situacao_origem_3").select("Incompleto")
+        self.app.text_input(key="procedencia_3").input("Outra instituição")
         self.clicar("Avançar")
         self.etapa(2, 3)
         self.clicar("Avançar")
@@ -99,7 +108,7 @@ class FluxoTest(unittest.TestCase):
         self.app.selectbox[1].select(self.matrizes[10][1])
         self.clicar("Avançar")
         self.etapa(3, 3)
-        self.assertEqual(self.analises[3][7:], (10, 101, 3))
+        self.assertEqual(self.analises[3][7:], (10, 101, 3, "Engenharia"))
         self.assertTrue(next(b for b in self.app.button if b.label == "Avançar").disabled)
         self.clicar("Voltar")
         self.assertEqual(self.app.selectbox[1].value[0], 101)
@@ -109,7 +118,8 @@ class FluxoTest(unittest.TestCase):
         self.clicar("Voltar")
         self.clicar("Voltar")
         self.etapa(0, 3)
-        self.assertEqual(self.app.text_input[2].value, "Outra instituição")
+        self.assertEqual(self.analises[3][5], "Outra instituição")
+        self.assertEqual(self.analises[3][10], "Engenharia")
         self.assertTrue(any("Carla" in m.value for m in self.app.markdown))
         self.clicar("Avançar")
         self.assertEqual(len(self.analises), 3)
@@ -133,8 +143,8 @@ class FluxoTest(unittest.TestCase):
         self.assertIsNone(self.app.selectbox[1].value)
         self.app.selectbox[1].select(self.matrizes[10][0])
         self.clicar("Avançar")
-        self.assertEqual(self.analises[2][7:], (10, 100, 2))
-        self.assertEqual(self.analises[1][7:], (10, 100, 1))
+        self.assertEqual(self.analises[2][7:], (10, 100, 2, "Sistemas"))
+        self.assertEqual(self.analises[1][7:], (10, 100, 1, "Engenharia"))
         self.clicar("Voltar")
         self.clicar("Voltar")
         self.clicar("Voltar")

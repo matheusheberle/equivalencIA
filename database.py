@@ -97,32 +97,29 @@ def buscar_alunos_por_nome(termo):
             return cursor.fetchall()
 
 
-def criar_analise(aluno_id, semestre_ano="", situacao="", procedencia=""):
+def criar_analise(aluno_id, semestre_ano=""):
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO analise (
                     aluno_id,
-                    semestre_ano,
-                    situacao,
-                    procedencia
+                    semestre_ano
                 )
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s)
                 RETURNING id;
             """, (
                 aluno_id,
-                semestre_ano,
-                situacao,
-                procedencia
+                semestre_ano
             ))
 
             return cursor.fetchone()[0]
 
 
-# Mantém as posições usadas pelas páginas do #021 e acrescenta aluno_id ao fim.
+# Mantém os índices usados pelas páginas anteriores e acrescenta dados de origem.
 _SELECT_ANALISE = """
-    SELECT a.id, al.nome, al.ra, a.semestre_ano, a.situacao,
-           a.procedencia, a.data_criacao, a.curso_id, a.matriz_id, a.aluno_id
+    SELECT a.id, al.nome, al.ra, a.semestre_ano, a.situacao_origem,
+           a.procedencia, a.data_criacao, a.curso_id, a.matriz_id, a.aluno_id,
+           a.curso_origem
     FROM analise a
     JOIN aluno al ON al.id = a.aluno_id
 """
@@ -144,24 +141,39 @@ def obter_analise(analise_id):
             return cursor.fetchone()
 
 
-def atualizar_analise(
-    analise_id,
-    semestre_ano,
-    situacao,
-    procedencia
-):
+def atualizar_analise(analise_id, semestre_ano):
     with obter_conexao() as conexao:
         with conexao.cursor() as cursor:
             cursor.execute("""
                 UPDATE analise
-                SET
-                    semestre_ano = %s,
-                    situacao = %s,
-                    procedencia = %s
+                SET semestre_ano = %s
                 WHERE id = %s;
             """, (
                 semestre_ano,
-                situacao,
+                analise_id
+            ))
+
+
+def salvar_origem_aproveitamento(
+    analise_id,
+    curso_origem,
+    situacao_origem,
+    procedencia
+):
+    curso_origem = (curso_origem or "").strip() or None
+    situacao_origem = (situacao_origem or "").strip() or None
+    procedencia = (procedencia or "").strip() or None
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                UPDATE analise
+                SET curso_origem = %s,
+                    situacao_origem = %s,
+                    procedencia = %s
+                WHERE id = %s;
+            """, (
+                curso_origem,
+                situacao_origem,
                 procedencia,
                 analise_id
             ))
