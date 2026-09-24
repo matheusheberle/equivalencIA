@@ -176,6 +176,26 @@ class PostgreSQLTest(unittest.TestCase):
             with self.subTest(termo=termo):
                 self.assertEqual([a[0] for a in database.buscar_alunos_por_nome(termo)], [especial])
 
+    def test_atualizacoes_informam_se_analise_foi_encontrada(self):
+        self.conexao.execute(SCHEMA)
+        aluno = database.criar_aluno("Aluno de teste")
+        analise = database.criar_analise(aluno)
+        curso = self.conexao.execute("INSERT INTO curso (codigo, nome) VALUES ('ADS', 'Sistemas') RETURNING id").fetchone()[0]
+        matriz = self.conexao.execute("INSERT INTO matriz (curso_id, codigo) VALUES (%s, '2026') RETURNING id", (curso,)).fetchone()[0]
+        operacoes = (
+            (database.atualizar_analise, ("1/2027",)),
+            (database.salvar_origem_aproveitamento, ("Curso", "Concluído", "Instituição")),
+            (database.salvar_curso_e_matriz, (curso, matriz)),
+        )
+        for operacao, argumentos in operacoes:
+            with self.subTest(operacao=operacao.__name__):
+                self.assertIs(operacao(analise, *argumentos), True)
+                # Atualizar com os mesmos valores também encontra o registro.
+                self.assertIs(operacao(analise, *argumentos), True)
+                antes = database.obter_analise(analise)
+                self.assertIs(operacao(analise + 1000, *argumentos), False)
+                self.assertEqual(database.obter_analise(analise), antes)
+
     def test_interface_reutiliza_aluno_existente_sem_inserir_aluno(self):
         from streamlit.testing.v1 import AppTest
 

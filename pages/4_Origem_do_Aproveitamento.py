@@ -7,6 +7,7 @@ from navegacao import SITUACOES_ORIGEM, apresentar_etapa, confirmar_salvamento, 
 
 situacoes = SITUACOES_ORIGEM
 dados = apresentar_etapa(1)
+st.caption("Salve antes de voltar, trocar de análise ou navegar para outra página. Alterações não salvas podem ser descartadas.")
 st.caption("Informe a formação anterior do aluno. Não informe aqui o período de encaixe na UNIPAR.")
 
 with st.form(f"form_origem_{dados[0]}"):
@@ -47,7 +48,7 @@ if salvar_apenas or continuar:
         st.error("Selecione a situação do curso de origem.")
     else:
         try:
-            salvar_origem_aproveitamento(
+            salvo = salvar_origem_aproveitamento(
                 dados[0],
                 curso_origem,
                 situacao_origem,
@@ -56,7 +57,11 @@ if salvar_apenas or continuar:
         except psycopg.Error:
             st.error("Não foi possível confirmar o salvamento da origem do aproveitamento. Tente salvar novamente.")
         else:
-            confirmar_salvamento("Origem do aproveitamento salva com sucesso.", 2 if continuar else 1)
-            if continuar:
-                ir_para_etapa(2)
-            st.rerun()
+            if not salvo:
+                st.error("As alterações não foram salvas porque a análise não foi encontrada. Selecione outra análise na listagem.")
+                st.page_link("pages/2_Nova_Analise.py", label="Ir para a listagem de análises")
+            else:
+                confirmar_salvamento("Origem do aproveitamento salva com sucesso.", 2 if continuar else 1)
+                if continuar:
+                    ir_para_etapa(2)
+                st.rerun()

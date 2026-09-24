@@ -1,8 +1,9 @@
 # equivalencIA
 
 Sistema de apoio à análise de equivalência e aproveitamento de disciplinas.
-A estrutura inicial oferece uma interface Streamlit com teste de conexão ao
-PostgreSQL. Ainda não há funcionalidades de IA.
+O fluxo atual permite cadastrar, buscar e editar alunos, criar e retomar análises,
+informar a origem do aproveitamento e selecionar curso e matriz de destino.
+Ainda não há funcionalidades de IA ou geração de documentos.
 
 ## Tecnologias
 
@@ -13,7 +14,8 @@ PostgreSQL. Ainda não há funcionalidades de IA.
 
 ## Pré-requisitos
 
-- Python com `pip` e suporte a `venv` (o ambiente atual utiliza Python 3.14).
+- Python com `pip` e suporte a `venv`. A suíte foi testada com Python 3.12.10;
+  outras versões, incluindo 3.14, não foram validadas nesta revisão.
 - PostgreSQL instalado e em execução, com um banco chamado `equivalencia`
   e um usuário com permissão de conexão. A aplicação não cria o banco;
   ele deve existir antes do teste de conexão.
@@ -69,7 +71,63 @@ DB_PASSWORD=sua_senha
 O `.env` contém credenciais e não deve ser enviado ao repositório. Ele está
 incluído no `.gitignore`; versione apenas o `.env.example`, sem senhas reais.
 
-Execute a aplicação:
+### Preparar o banco de dados
+
+Escolha somente o roteiro correspondente ao estado do banco. Execute os comandos
+na raiz do projeto e ajuste host, porta, usuário e banco conforme seu `.env`.
+`createdb`, `psql` e `pg_dump` precisam estar no PATH. Não coloque senhas nos comandos.
+
+#### Banco novo
+
+Crie o banco e execute o schema atual e o seed, nesta ordem:
+
+```powershell
+createdb -h localhost -p 5432 -U postgres equivalencia
+psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/schema.sql
+psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/seed.sql
+```
+
+Se o banco vazio já foi criado pelo pgAdmin, dispense o `createdb`.
+Prossiga somente se cada comando terminar sem erro. Não execute migrações
+incrementais (022 ou 023) em um banco criado com o schema atual.
+
+#### Banco antigo, anterior à separação de aluno (schema do card #021)
+
+Pare o Streamlit. Faça um backup, escolhendo um nome de arquivo ainda não existente:
+
+```powershell
+pg_dump -h localhost -p 5432 -U postgres -d equivalencia -Fc -f equivalencia_antes_atualizacao.dump
+```
+
+Somente após confirmar o sucesso do backup, execute as duas migrações na ordem:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/022_separar_aluno.sql
+psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/023_origem_aproveitamento.sql
+```
+
+Execute a segunda somente se a primeira terminar com sucesso. Reinicie a aplicação
+somente após ambas concluírem. Não reaplique schema ou seed ao banco existente.
+
+#### Banco com a migração 022 já aplicada
+
+Pare a aplicação e faça um backup com `pg_dump`, como acima. Se os campos de origem
+ainda estiverem pendentes, execute **somente**:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/023_origem_aproveitamento.sql
+```
+
+Após a conclusão com sucesso, reinicie a aplicação. Não repita a migração 022.
+
+#### Banco atualizado
+
+Não reaplique schema, seed ou migrações. As correções de validação, navegação,
+mensagens e verificação de atualizações não exigem alteração no banco.
+
+### Iniciar a aplicação
+
+Com o banco preparado pelo roteiro apropriado, execute:
 
 ```sh
 streamlit run app.py
@@ -77,7 +135,7 @@ streamlit run app.py
 
 Na interface, use **Testar conexão com o banco** para verificar a conexão.
 
-## Estrutura inicial
+## Estrutura do projeto
 
 - `app.py`: interface Streamlit.
 - `database.py`: conexão e operações de alunos, cursos, matrizes e análises no PostgreSQL.
@@ -151,7 +209,8 @@ no PostgreSQL. A etapa não é persistida no banco.
    **Cadastrar aluno**, preencha o nome (RA opcional) e clique em **Salvar aluno**.
    O aluno fica salvo independentemente da análise e já aparece selecionado.
    Preencha os dados da análise e avance: deve abrir a etapa 2 com nome e ID.
-3. Avance para Curso e Matriz: a análise não deve ser solicitada novamente.
+3. Selecione a situação do curso de origem e avance para Curso e Matriz:
+   a análise não deve ser solicitada novamente.
    Sem selecionar matriz, Avançar deve mostrar a validação. Selecione uma
    matriz e avance para a mensagem de próxima etapa ainda não implementada.
 4. Volte até Nova Análise e confira os dados salvos e o mesmo ID. Altere um
@@ -176,37 +235,16 @@ a análise vinculada. Para criar uma segunda análise do mesmo aluno, use
 **Cadastrar outra análise**: o aluno permanece selecionado e pode ser substituído
 por outro resultado da busca. Semestre/Ano de ingresso, curso de origem, situação de origem
 e procedência pertencem à análise.
-O cadastro de aluno não tem edição direta.
+Nos resultados da busca, **Editar** permite alterar nome e RA pelo ID do aluno.
+**Salvar alterações** atualiza o cadastro existente; **Cancelar edição** sai sem salvar.
 
-### Atualizar um PostgreSQL existente (#021 → #022)
+### Preservação de dados nas migrações
 
-Pare o Streamlit antes de migrar. Os comandos abaixo são executados na raiz do
-projeto; ajuste host, porta, usuário e banco conforme seu `.env`. `psql` e
-`pg_dump` precisam estar no PATH (ou use o caminho completo dos executáveis
-da instalação PostgreSQL). Eles solicitarão a senha, sem colocá-la no comando.
+Os roteiros de execução estão em **Preparar o banco de dados**.
+No pgAdmin, execute cada arquivo de migração completo; em caso de erro,
+execute `ROLLBACK;` antes de corrigir o problema e tentar novamente.
 
-1. Faça um backup, usando um nome de arquivo ainda não existente:
-
-   ```powershell
-   pg_dump -h localhost -p 5432 -U postgres -d equivalencia -Fc -f equivalencia_antes_022.dump
-   ```
-
-2. Somente após confirmar que o backup terminou sem erro, execute uma vez:
-
-   ```powershell
-   psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/022_separar_aluno.sql
-   ```
-
-   Alternativamente, faça o backup pelo pgAdmin e execute o arquivo completo
-   de migração no Query Tool do banco correto. Em caso de erro, execute
-   `ROLLBACK;` antes de corrigir os dados e tentar novamente.
-
-3. Reinicie `streamlit run app.py` somente após a migração concluir com `COMMIT`.
-
-Depois de aplicar `022_separar_aluno.sql`, atualize os bancos existentes uma vez
-com `psql -h localhost -p 5432 -U postgres -d equivalencia -v ON_ERROR_STOP=1 -f sql/migrations/023_origem_aproveitamento.sql`.
-
-A migração usa uma transação e bloqueia `analise` durante a execução. Preserva
+A migração 022 usa uma transação e bloqueia `analise` durante a execução. Preserva
 IDs, datas, dados da análise e vínculos de curso/matriz. Cada análise antiga
 recebe um aluno próprio: nome e RA não são identificadores suficientes para
 unificar pessoas com segurança. RAs antigos vazios são convertidos em `NULL`;
@@ -220,10 +258,6 @@ incompatível com a versão anterior da aplicação; não volte apenas o código
 Se precisar reverter, restaure o backup em um banco separado para conferência
 e use o código correspondente ao #021. Não há migração reversa automática.
 O script não é idempotente: uma segunda execução falha sem apagar os dados.
-
-Para um banco **novo e vazio**, aplique `sql/schema.sql` e depois `sql/seed.sql`
-usando `psql -v ON_ERROR_STOP=1 -f ...`. Não execute a migração #022 nesse caso,
-nem execute `schema.sql` por cima do banco existente.
 
 ### Verificar o relacionamento
 
@@ -269,8 +303,8 @@ nome obrigatório, chaves estrangeiras, duas análises do mesmo aluno, preserva�
 dos dados legados e rollback da migração inválida. Sem a variável, são ignorados.
 
 Limitações: RA não tem unicidade e não há unificação automática de cadastros
-legados, edição de alunos (#026) ou mudanças de Origem
-(#025). O contexto de navegação continua limitado à sessão Streamlit.
+legados. Edição direta de aluno e campos de origem estão implementados.
+O contexto de navegação continua limitado à sessão Streamlit.
 
 ## Busca de alunos — card #023
 
@@ -293,8 +327,8 @@ Uma análise ativa mantém seu próprio aluno; para iniciar outra, use
 
 ### Testar manualmente a busca
 
-1. Com o schema do #022 aplicado, execute `streamlit run app.py` e entre em
-   Nova Análise. Nenhuma migração adicional é necessária para o #023.
+1. Com o banco preparado conforme o roteiro da versão atual, execute
+   `streamlit run app.py` e entre em Nova Análise.
 2. Cadastre dois alunos com nomes contendo **Matheus**, um com RA e outro sem.
 3. Pesquise nome completo, depois `theus` e `mAtHeUs`. Confira os resultados,
    seus IDs e a apresentação do RA.
@@ -311,4 +345,4 @@ ID e regressão dos cards #021/#022. Os testes reais continuam isolados e com ro
 
 Limitações da busca: não remove acentos, não pesquisa RA e ainda não tem
 paginação ou índice específico para substring. Termos muito amplos podem
-produzir muitos resultados. Não há edição direta do aluno neste card.
+produzir muitos resultados. A edição direta está disponível pelo botão **Editar**.

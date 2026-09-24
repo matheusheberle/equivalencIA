@@ -56,16 +56,25 @@ class FluxoTest(unittest.TestCase):
         return ident
 
     def atualizar(self, ident, *valores):
+        if ident not in self.analises:
+            return False
         self.analises[ident] = (*self.analises[ident][:3], *valores, *self.analises[ident][4:])
+        return True
 
     def salvar_origem(self, ident, curso_origem, situacao, procedencia):
+        if ident not in self.analises:
+            return False
         dados = list(self.analises[ident])
         dados[4:6] = (situacao, procedencia)
         dados[10] = curso_origem
         self.analises[ident] = tuple(dados)
+        return True
 
     def salvar_matriz(self, ident, curso, matriz):
+        if ident not in self.analises:
+            return False
         self.analises[ident] = (*self.analises[ident][:7], curso, matriz, *self.analises[ident][9:])
+        return True
 
     def clicar(self, label):
         next(b for b in self.app.button if b.label == label).click().run()
@@ -93,6 +102,72 @@ class FluxoTest(unittest.TestCase):
         self.assertTrue(self.app.error)
         self.assertFalse(self.app.success)
         self.assertNotIn("SEGREDO", " ".join(e.value for e in self.app.error))
+
+    def test_analise_ausente_na_atualizacao_preserva_ingresso(self):
+        self.ativar()
+        self.app.text_input(key="analise_1_semestre_ano").input("1/2027")
+        with patch("database.atualizar_analise", return_value=False):
+            for botao in ("Salvar alterações", "Avançar"):
+                self.clicar(botao)
+                self.conferir_erro_banco()
+                self.assertIn("não foram salvas porque a análise não foi encontrada", self.app.error[0].value)
+                self.etapa(0, 1)
+                self.assertEqual(self.app.text_input(key="analise_1_semestre_ano").value, "1/2027")
+                self.assertNotIn("confirmacao_salvamento", self.app.session_state)
+        self.app.selectbox[0].select(self.analises[2])
+        self.clicar("Ativar análise selecionada")
+        self.etapa(0, 2)
+
+    def test_analise_removida_ao_salvar_origem_preserva_campos(self):
+        self.ativar()
+        self.clicar("Avançar")
+        self.app.text_input(key="curso_origem_1").input("Rascunho")
+        self.app.text_input(key="procedencia_1").input("Instituição nova")
+        def remover(*args):
+            del self.analises[1]
+            return False
+        with patch("database.salvar_origem_aproveitamento", side_effect=remover):
+            self.clicar("Avançar")
+            self.conferir_erro_banco()
+            self.assertIn("análise não foi encontrada", self.app.error[0].value)
+            self.etapa(1, 1)
+            self.assertEqual(self.app.text_input(key="curso_origem_1").value, "Rascunho")
+            self.assertEqual(self.app.text_input(key="procedencia_1").value, "Instituição nova")
+            self.assertTrue(self.app.get("page_link"))
+        self.app.switch_page("pages/2_Nova_Analise.py").run()
+        self.assertFalse(self.app.exception)
+        self.app.selectbox[0].select(self.analises[2])
+        self.clicar("Ativar análise selecionada")
+        self.etapa(0, 2)
+
+    def test_analise_removida_ao_salvar_destino_preserva_selecao(self):
+        self.ativar()
+        self.clicar("Avançar")
+        self.clicar("Avançar")
+        self.app.selectbox[1].select(self.matrizes[10][1])
+        def remover(*args):
+            del self.analises[1]
+            return False
+        with patch("database.salvar_curso_e_matriz", side_effect=remover):
+            self.clicar("Avançar")
+            self.conferir_erro_banco()
+            self.assertIn("análise não foi encontrada", self.app.error[0].value)
+            self.etapa(2, 1)
+            self.assertEqual(self.app.selectbox[1].value[0], 101)
+            self.assertTrue(self.app.get("page_link"))
+        self.app.switch_page("pages/2_Nova_Analise.py").run()
+        self.assertFalse(self.app.exception)
+        self.clicar("Ativar análise selecionada")
+        self.etapa(0, 2)
+
+    def test_avisos_de_descarte_e_rotulos(self):
+        self.ativar()
+        self.assertIn("Situação do curso de origem", self.app.dataframe[0].value.columns)
+        for etapa in range(3):
+            self.assertTrue(any("Salve antes de voltar, trocar de análise ou navegar" in c.value for c in self.app.caption))
+            if etapa < 2:
+                self.clicar("Avançar")
+        self.assertTrue(any("versão da grade" in c.value for c in self.app.caption))
 
     def test_menu_bloqueia_origem_nao_salva_mesmo_com_sessao_preenchida(self):
         dados = list(self.analises[1])

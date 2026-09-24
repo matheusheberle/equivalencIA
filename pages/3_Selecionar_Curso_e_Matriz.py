@@ -10,7 +10,9 @@ from navegacao import apresentar_etapa, confirmar_salvamento, ir_para_etapa
 
 
 dados_analise = apresentar_etapa(2)
-st.caption("Avançar salva a seleção. Voltar não salva alterações pendentes.")
+st.caption("Avançar salva a seleção.")
+st.caption("Salve antes de voltar, trocar de análise ou navegar para outra página. Alterações não salvas podem ser descartadas.")
+st.caption("A matriz curricular representa a versão da grade do curso, não necessariamente o semestre atual.")
 if st.button("Voltar"):
     ir_para_etapa(1)
 try:
@@ -89,7 +91,7 @@ if st.button("Avançar", type="primary", disabled=not matrizes):
         st.error("A matriz curricular é obrigatória para continuar.")
     else:
         try:
-            salvar_curso_e_matriz(
+            salvo = salvar_curso_e_matriz(
                 dados_analise[0],
                 curso_selecionado[0],
                 matriz_selecionada[0]
@@ -97,5 +99,9 @@ if st.button("Avançar", type="primary", disabled=not matrizes):
         except psycopg.Error:
             st.error("Não foi possível confirmar o salvamento do curso e da matriz. Tente salvar novamente.")
         else:
-            confirmar_salvamento("Curso e matriz salvos com sucesso.", 3)
-            ir_para_etapa(3)
+            if not salvo:
+                st.error("As alterações não foram salvas porque a análise não foi encontrada. Selecione outra análise na listagem.")
+                st.page_link("pages/2_Nova_Analise.py", label="Ir para a listagem de análises")
+            else:
+                confirmar_salvamento("Curso e matriz salvos com sucesso.", 3)
+                ir_para_etapa(3)

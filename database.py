@@ -176,11 +176,12 @@ def atualizar_analise(analise_id, semestre_ano):
             cursor.execute("""
                 UPDATE analise
                 SET semestre_ano = %s
-                WHERE id = %s;
+                WHERE id = %s RETURNING id;
             """, (
                 semestre_ano,
                 analise_id
             ))
+            return cursor.fetchone() is not None
 
 
 def salvar_origem_aproveitamento(
@@ -199,13 +200,14 @@ def salvar_origem_aproveitamento(
                 SET curso_origem = %s,
                     situacao_origem = %s,
                     procedencia = %s
-                WHERE id = %s;
+                WHERE id = %s RETURNING id;
             """, (
                 curso_origem,
                 situacao_origem,
                 procedencia,
                 analise_id
             ))
+            return cursor.fetchone() is not None
 
 
 def salvar_curso_e_matriz(analise_id, curso_id, matriz_id):
@@ -216,9 +218,10 @@ def salvar_curso_e_matriz(analise_id, curso_id, matriz_id):
                 SET
                     curso_id = %s,
                     matriz_id = %s
-                WHERE id = %s;
+                WHERE id = %s RETURNING id;
             """, (
                 curso_id,
                 matriz_id,
                 analise_id
             ))
+            return cursor.fetchone() is not None

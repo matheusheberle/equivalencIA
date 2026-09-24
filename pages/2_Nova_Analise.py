@@ -10,6 +10,7 @@ from navegacao import apresentar_etapa, ativar_analise, confirmar_salvamento, ir
 
 
 dados = apresentar_etapa(0)
+st.caption("Salve antes de voltar, trocar de análise ou navegar para outra página. Alterações não salvas podem ser descartadas.")
 
 if dados and st.button("Cadastrar outra análise"):
     ativar_analise(None)
@@ -186,18 +187,22 @@ if salvar_apenas or continuar:
         else:
             try:
                 if dados:
-                    atualizar_analise(dados[0], semestre_ano)
+                    salvo = atualizar_analise(dados[0], semestre_ano)
                 else:
                     nova_analise_id = criar_analise(aluno_id, semestre_ano)
+                    salvo = True
             except psycopg.Error:
                 st.error("Não foi possível confirmar o salvamento da análise. Consulte as análises cadastradas antes de tentar salvar novamente.")
             else:
-                if not dados:
-                    ativar_analise(nova_analise_id)
-                confirmar_salvamento("Dados da análise salvos com sucesso.", 1 if continuar else 0)
-                if continuar:
-                    ir_para_etapa(1)
-                st.rerun()
+                if not salvo:
+                    st.error("As alterações não foram salvas porque a análise não foi encontrada. Selecione outra análise na listagem.")
+                else:
+                    if not dados:
+                        ativar_analise(nova_analise_id)
+                    confirmar_salvamento("Dados da análise salvos com sucesso.", 1 if continuar else 0)
+                    if continuar:
+                        ir_para_etapa(1)
+                    st.rerun()
 
 st.divider()
 with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
@@ -220,7 +225,7 @@ with st.expander("Selecionar uma análise cadastrada", expanded=dados is None):
                     "RA": analise[2],
                     "Semestre/Ano de ingresso": analise[3],
                     "Curso de origem": analise[10],
-                    "Situação": analise[4],
+                    "Situação do curso de origem": analise[4],
                     "Procedência": analise[5],
                     "Criada em": analise[6],
                 }
