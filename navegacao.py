@@ -8,10 +8,10 @@ SITUACOES_ORIGEM = ("Concluído", "Incompleto", "Trancado")
 
 
 ETAPAS = (
-    ("Iniciar Análise", "pages/2_Nova_Analise.py"),
+    ("Iniciar Análise", "pages/2_Iniciar_Analise.py"),
     ("Origem do Aproveitamento", "pages/4_Origem_do_Aproveitamento.py"),
-    ("Curso e Matriz", "pages/3_Selecionar_Curso_e_Matriz.py"),
-    ("Continuação da Análise", "pages/5_Proxima_Etapa.py"),
+    ("Curso e Matriz", "pages/3_Curso_e_Matriz.py"),
+    ("Continuação da Análise", "pages/5_Continuacao_da_Analise.py"),
 )
 
 
