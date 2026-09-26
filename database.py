@@ -24,7 +24,7 @@ def testar_conexao():
                 cursor.execute("SELECT 1;")
                 cursor.fetchone()
 
-        return True, "Conexão com PostgreSQL realizada com sucesso."
+        return True, "Sistema conectado e pronto para uso."
 
     except psycopg.Error:
         return False, "Não foi possível conectar ao banco de dados. Tente novamente."

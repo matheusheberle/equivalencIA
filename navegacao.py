@@ -8,10 +8,10 @@ SITUACOES_ORIGEM = ("Concluído", "Incompleto", "Trancado")
 
 
 ETAPAS = (
-    ("Nova Análise", "pages/2_Nova_Analise.py"),
+    ("Iniciar Análise", "pages/2_Nova_Analise.py"),
     ("Origem do Aproveitamento", "pages/4_Origem_do_Aproveitamento.py"),
     ("Curso e Matriz", "pages/3_Selecionar_Curso_e_Matriz.py"),
-    ("Próxima etapa", "pages/5_Proxima_Etapa.py"),
+    ("Continuação da Análise", "pages/5_Proxima_Etapa.py"),
 )
 
 
@@ -68,7 +68,7 @@ def apresentar_etapa(etapa):
     st.caption(" → ".join(nome for nome, _ in ETAPAS))
     if etapa > 0 and dados is None:
         st.warning("Crie ou selecione uma análise para continuar.")
-        if st.button("Ir para Nova Análise"):
+        if st.button("Ir para Iniciar Análise"):
             ir_para_etapa(0)
         st.stop()
 
@@ -79,7 +79,7 @@ def apresentar_etapa(etapa):
             normalizar_semestre_ano_ingresso(dados[3])
         except ValueError:
             pendencia = 0
-            mensagem = "Corrija e salve o Semestre/Ano de ingresso em Nova Análise (1/2027 ou 2/2027), ou deixe o campo vazio."
+            mensagem = "Corrija e salve o Semestre/Ano de ingresso em Iniciar Análise (1/2027 ou 2/2027), ou deixe o campo vazio."
         if pendencia is None and etapa > 1 and dados[4] not in SITUACOES_ORIGEM:
             pendencia = 1
             mensagem = "Selecione e salve a situação do curso de origem em Origem do Aproveitamento antes de continuar."

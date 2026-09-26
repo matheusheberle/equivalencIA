@@ -12,8 +12,7 @@ st.set_page_config(
 st.title("equivalencIA")
 
 st.write(
-    "Sistema de apoio à análise de equivalência "
-    "e aproveitamento de disciplinas."
+    "Sistema de apoio à análise curricular e ao aproveitamento de disciplinas."
 )
 
 st.divider()
@@ -26,9 +25,9 @@ else:
     if st.button("Iniciar análise", type="primary"):
         ir_para_etapa(0)
 
-st.subheader("Status do sistema")
+st.subheader("Status da conexão")
 
-if st.button("Testar conexão com o banco"):
+if st.button("Verificar conexão"):
     sucesso, mensagem = testar_conexao()
 
     if sucesso:
