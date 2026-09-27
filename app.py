@@ -11,7 +11,12 @@ st.set_page_config(
 
 
 def pagina_inicio():
-    st.image("assets/logo.png", width=320)
+    tema = st.context.theme.type
+
+    if tema == "dark":
+        st.image("assets/logo_dark.png", width=320)
+    else:
+        st.image("assets/logo_light.png", width=320)
 
     st.write(
         "Sistema de apoio à análise curricular e ao aproveitamento de disciplinas."
