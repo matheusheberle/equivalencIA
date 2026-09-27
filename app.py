@@ -11,7 +11,7 @@ st.set_page_config(
 
 
 def pagina_inicio():
-    st.title("equivalencIA")
+    st.image("assets/logo.png", width=320)
 
     st.write(
         "Sistema de apoio à análise curricular e ao aproveitamento de disciplinas."
