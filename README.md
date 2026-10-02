@@ -69,6 +69,8 @@ Atualmente, o sistema permite:
 - informar o semestre/ano de ingresso;
 - registrar dados do curso e da instituição de origem;
 - selecionar curso e matriz curricular de destino;
+- cadastrar disciplinas da UNIPAR com código, nome, carga horária e período;
+- consultar disciplinas filtradas por matriz curricular;
 - navegar entre as etapas por meio de um fluxo guiado;
 - validar pré-requisitos antes do avanço entre etapas;
 - persistir dados em PostgreSQL;
@@ -109,6 +111,7 @@ equivalencIA/
 ├── assets/             # identidade visual
 ├── documents/          # documentos e recursos do projeto
 ├── pages/              # páginas da aplicação
+│   ├── 6_Disciplinas.py # cadastro e consulta das disciplinas da UNIPAR
 ├── services/           # serviços da aplicação
 ├── sql/
 │   ├── migrations/     # migrações incrementais
@@ -138,6 +141,8 @@ seed.sql
 ```
 
 As migrações existentes em `sql/migrations/` são destinadas apenas a bancos criados em versões anteriores do projeto.
+
+Para atualizar uma base existente com o cadastro de disciplinas, execute uma vez `sql/migrations/cadastro_disciplinas.sql`. Em uma base nova, a tabela já é criada por `sql/schema.sql`.
 
 > **Importante:** não execute migrações antigas em um banco novo criado diretamente a partir do `schema.sql` atual.
 
@@ -244,13 +249,15 @@ Os testes de integração com PostgreSQL utilizam ambientes isolados e rollback 
   - `Incompleto`
   - `Trancado`
 - A matriz curricular representa uma versão da grade do curso.
+- Cada disciplina pertence a uma matriz; códigos podem se repetir em matrizes diferentes, mas não dentro da mesma matriz.
+- A carga horária e o período da disciplina devem ser números inteiros positivos.
 - O período de encaixe do aluno será definido posteriormente no processo de análise.
 
 ## Roadmap
 
 O backlog do projeto prevê:
 
-- [ ] cadastro das disciplinas das matrizes da UNIPAR;
+- [x] cadastro e consulta das disciplinas das matrizes da UNIPAR;
 - [ ] planos de ensino das disciplinas de destino;
 - [ ] upload do histórico acadêmico;
 - [ ] upload opcional dos planos de ensino de origem;

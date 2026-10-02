@@ -11,6 +11,18 @@ CREATE TABLE matriz (
     UNIQUE (curso_id, codigo)
 );
 
+CREATE TABLE disciplina (
+    id SERIAL PRIMARY KEY,
+    matriz_id INTEGER NOT NULL REFERENCES matriz(id),
+    codigo VARCHAR(30) NOT NULL CONSTRAINT ck_disciplina_codigo CHECK (codigo ~ '[^[:space:]]'),
+    nome VARCHAR(200) NOT NULL CONSTRAINT ck_disciplina_nome CHECK (nome ~ '[^[:space:]]'),
+    carga_horaria INTEGER NOT NULL CONSTRAINT ck_disciplina_carga_horaria CHECK (carga_horaria > 0),
+    periodo INTEGER NOT NULL CONSTRAINT ck_disciplina_periodo CHECK (periodo > 0),
+    CONSTRAINT uq_disciplina_matriz_codigo UNIQUE (matriz_id, codigo)
+);
+
+CREATE INDEX idx_disciplina_matriz_id ON disciplina (matriz_id);
+
 CREATE TABLE aluno (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL CONSTRAINT ck_aluno_nome CHECK (nome ~ '[^[:space:]]'),

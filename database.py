@@ -53,6 +53,63 @@ def listar_matrizes_por_curso(curso_id):
             return cursor.fetchall()
 
 
+def listar_matrizes():
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                SELECT m.id, m.codigo, c.codigo, c.nome
+                FROM matriz m
+                JOIN curso c ON c.id = m.curso_id
+                ORDER BY c.nome, m.codigo;
+            """)
+            return cursor.fetchall()
+
+
+def listar_disciplinas_por_matriz(matriz_id):
+    if matriz_id is None:
+        return []
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, codigo, nome, carga_horaria, periodo
+                FROM disciplina
+                WHERE matriz_id = %s
+                ORDER BY periodo, nome, codigo;
+            """, (matriz_id,))
+            return cursor.fetchall()
+
+
+def criar_disciplina(codigo, nome, carga_horaria, periodo, matriz_id):
+    codigo = (codigo or "").strip()
+    nome = (nome or "").strip()
+    if not codigo:
+        raise ValueError("O código da disciplina é obrigatório.")
+    if not nome:
+        raise ValueError("O nome da disciplina é obrigatório.")
+    try:
+        carga_horaria = int(carga_horaria)
+    except (TypeError, ValueError):
+        raise ValueError("Informe uma carga horária inteira maior que zero.") from None
+    if carga_horaria <= 0:
+        raise ValueError("Informe uma carga horária inteira maior que zero.")
+    try:
+        periodo = int(periodo)
+    except (TypeError, ValueError):
+        raise ValueError("Informe um período inteiro maior que zero.") from None
+    if periodo <= 0:
+        raise ValueError("Informe um período inteiro maior que zero.")
+    if matriz_id is None:
+        raise ValueError("Selecione uma matriz curricular.")
+    with obter_conexao() as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO disciplina (matriz_id, codigo, nome, carga_horaria, periodo)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id;
+            """, (matriz_id, codigo, nome, carga_horaria, periodo))
+            return cursor.fetchone()[0]
+
+
 def _normalizar_dados_aluno(nome, ra):
     nome = (nome or "").strip()
     if not nome:

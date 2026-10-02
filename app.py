@@ -71,6 +71,11 @@ paginas = [
         title="Cursos e Matrizes",
         icon="📚"
     ),
+    st.Page(
+        "pages/6_Disciplinas.py",
+        title="Disciplinas",
+        icon="📖"
+    ),
 ]
 
 navegacao = st.navigation(paginas)
