@@ -71,6 +71,12 @@ Atualmente, o sistema permite:
 - selecionar curso e matriz curricular de destino;
 - cadastrar disciplinas da UNIPAR com código, nome, carga horária e período;
 - consultar disciplinas filtradas por matriz curricular;
+- cadastrar e editar planos de ensino vinculados às disciplinas da UNIPAR;
+- anexar histórico acadêmico em PDF ou DOCX a cada análise;
+- extrair campos de históricos PDF/DOCX para revisão do coordenador;
+- corrigir os campos extraídos e confirmar os dados revisados antes das próximas etapas;
+- impedir que disciplinas reprovadas ou sem aprovação identificada sigam para aproveitamento;
+- comparar a carga horária das disciplinas de origem aprovadas com as da matriz selecionada;
 - navegar entre as etapas por meio de um fluxo guiado;
 - validar pré-requisitos antes do avanço entre etapas;
 - persistir dados em PostgreSQL;
@@ -112,7 +118,12 @@ equivalencIA/
 ├── documents/          # documentos e recursos do projeto
 ├── pages/              # páginas da aplicação
 │   ├── 6_Disciplinas.py # cadastro e consulta das disciplinas da UNIPAR
-├── services/           # serviços da aplicação
+│   ├── 7_Planos_de_Ensino.py # cadastro e edição dos planos de ensino
+│   ├── 5_Continuacao_da_Analise.py # extração e revisão dos dados do histórico
+├── services/           # validação e serviços da aplicação
+│   ├── documentos.py   # validação do histórico acadêmico
+│   ├── extracao_historico.py # extração conservadora de texto e disciplinas
+│   ├── comparacao_carga_horaria.py # validação da carga horária mínima
 ├── sql/
 │   ├── migrations/     # migrações incrementais
 │   ├── schema.sql      # estrutura atual do banco
@@ -143,6 +154,14 @@ seed.sql
 As migrações existentes em `sql/migrations/` são destinadas apenas a bancos criados em versões anteriores do projeto.
 
 Para atualizar uma base existente com o cadastro de disciplinas, execute uma vez `sql/migrations/cadastro_disciplinas.sql`. Em uma base nova, a tabela já é criada por `sql/schema.sql`.
+
+Para adicionar os planos de ensino a uma base existente, execute uma vez `sql/migrations/planos_ensino.sql`. Em uma base nova, a tabela já é criada por `sql/schema.sql`.
+
+Para adicionar o armazenamento dos históricos a uma base existente, execute uma vez `sql/migrations/historico_academico.sql`. Os arquivos originais são armazenados como bytes no PostgreSQL e associados à análise.
+
+Para habilitar anexos múltiplos de planos da instituição de origem em uma base que já possui a tabela `documento`, execute uma vez `sql/migrations/planos_ensino_origem.sql`.
+
+Após criar a tabela `documento` no banco existente, execute ou reexecute `sql/migrations/extracao_historico.sql` para guardar os resultados e a confirmação da revisão. A leitura usa `pypdf` para PDFs com camada de texto e `python-docx` para DOCX; não inclui OCR para documentos digitalizados.
 
 > **Importante:** não execute migrações antigas em um banco novo criado diretamente a partir do `schema.sql` atual.
 

@@ -23,6 +23,16 @@ CREATE TABLE disciplina (
 
 CREATE INDEX idx_disciplina_matriz_id ON disciplina (matriz_id);
 
+CREATE TABLE plano_ensino (
+    id SERIAL PRIMARY KEY,
+    disciplina_id INTEGER NOT NULL UNIQUE REFERENCES disciplina(id),
+    ementa TEXT NOT NULL CONSTRAINT ck_plano_ensino_ementa CHECK (ementa ~ '[^[:space:]]'),
+    conteudo_programatico TEXT NOT NULL CONSTRAINT ck_plano_ensino_conteudo CHECK (conteudo_programatico ~ '[^[:space:]]'),
+    objetivos TEXT,
+    bibliografia TEXT,
+    atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE aluno (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL CONSTRAINT ck_aluno_nome CHECK (nome ~ '[^[:space:]]'),
@@ -66,3 +76,40 @@ CHECK (
 );
 
 CREATE INDEX idx_analise_aluno_id ON analise (aluno_id);
+
+CREATE TABLE documento (
+    id SERIAL PRIMARY KEY,
+    analise_id INTEGER NOT NULL REFERENCES analise(id),
+    tipo VARCHAR(30) NOT NULL CONSTRAINT ck_documento_tipo
+        CHECK (tipo IN ('historico', 'plano_ensino_origem')),
+    nome_arquivo TEXT NOT NULL CHECK (nome_arquivo ~ '[^[:space:]]'),
+    conteudo BYTEA NOT NULL,
+    data_envio TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX uq_documento_historico ON documento (analise_id) WHERE tipo = 'historico';
+CREATE INDEX idx_documento_analise_id ON documento (analise_id);
+
+CREATE TABLE extracao_historico (
+    id SERIAL PRIMARY KEY,
+    analise_id INTEGER NOT NULL UNIQUE REFERENCES analise(id) ON DELETE CASCADE,
+    documento_id INTEGER NOT NULL REFERENCES documento(id),
+    processado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    aviso TEXT,
+    confirmado_em TIMESTAMP
+);
+
+CREATE TABLE disciplina_extraida (
+    id SERIAL PRIMARY KEY,
+    extracao_id INTEGER NOT NULL REFERENCES extracao_historico(id) ON DELETE CASCADE,
+    codigo TEXT,
+    nome TEXT,
+    nota TEXT,
+    carga_horaria TEXT,
+    periodo TEXT,
+    situacao TEXT,
+    texto_origem TEXT NOT NULL,
+    revisado BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX idx_disciplina_extraida_extracao ON disciplina_extraida (extracao_id);

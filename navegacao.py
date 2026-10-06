@@ -1,7 +1,12 @@
 import streamlit as st
 import psycopg
 
-from database import normalizar_semestre_ano_ingresso, obter_analise
+from database import (
+    normalizar_semestre_ano_ingresso,
+    obter_analise,
+    obter_extracao_historico,
+    obter_historico,
+)
 
 
 SITUACOES_ORIGEM = ("Concluído", "Incompleto", "Trancado")
@@ -76,7 +81,18 @@ def apresentar_etapa(etapa):
     mensagem = None
     if etapa > 0 and dados:
         try:
-            normalizar_semestre_ano_ingresso(dados[3])
+            historico = obter_historico(dados[0])
+        except psycopg.Error:
+            st.error("Não foi possível verificar o histórico acadêmico. Tente novamente.")
+            if st.button("Tentar novamente"):
+                st.rerun()
+            st.stop()
+        if historico is None:
+            pendencia = 0
+            mensagem = "Anexe o histórico acadêmico em Iniciar Análise antes de continuar."
+        try:
+            if pendencia is None:
+                normalizar_semestre_ano_ingresso(dados[3])
         except ValueError:
             pendencia = 0
             mensagem = "Corrija e salve o Semestre/Ano de ingresso em Iniciar Análise (1/2027 ou 2/2027), ou deixe o campo vazio."
@@ -86,6 +102,22 @@ def apresentar_etapa(etapa):
         if pendencia is None and etapa > 2 and (dados[7] is None or dados[8] is None):
             pendencia = 2
             mensagem = "Selecione e salve o curso e a matriz em Curso e Matriz antes de continuar."
+        if pendencia is None and etapa > 3:
+            try:
+                extracao, disciplinas = obter_extracao_historico(dados[0])
+            except psycopg.Error:
+                st.error("Não foi possível verificar a confirmação dos dados extraídos. Tente novamente.")
+                if st.button("Tentar novamente"):
+                    st.rerun()
+                st.stop()
+            if (
+                extracao is None
+                or extracao[4] is None
+                or not disciplinas
+                or any(not disciplina[8] for disciplina in disciplinas)
+            ):
+                pendencia = 3
+                mensagem = "Revise e confirme todas as disciplinas extraídas antes de iniciar a comparação de equivalências."
     if pendencia is not None:
         st.session_state.etapa_atual = pendencia
         st.warning(mensagem)

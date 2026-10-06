@@ -3,10 +3,13 @@ import psycopg
 
 from database import (
     atualizar_aluno, atualizar_analise, buscar_alunos_por_nome, criar_aluno,
-    criar_analise, listar_analises, obter_aluno,
+    criar_analise_com_historico, listar_analises, obter_aluno, obter_historico,
+    listar_planos_origem, remover_plano_origem, salvar_historico,
+    salvar_planos_origem,
     normalizar_semestre_ano_ingresso,
 )
 from navegacao import apresentar_etapa, ativar_analise, confirmar_salvamento, ir_para_etapa
+from services.documentos import validar_historico, validar_plano_origem
 
 
 dados = apresentar_etapa(0)
@@ -163,7 +166,58 @@ else:
 st.subheader("Dados da análise ativa" if dados else "Iniciar análise para o aluno selecionado")
 st.caption("Avançar salva os dados deste formulário antes de continuar.")
 
+historico = None
+planos_origem = []
+if dados:
+    try:
+        historico = obter_historico(dados[0])
+        planos_origem = listar_planos_origem(dados[0])
+    except psycopg.Error:
+        st.error("Não foi possível verificar o histórico acadêmico. Tente novamente.")
+        if st.button("Tentar novamente"):
+            st.rerun()
+        st.stop()
+
+if historico:
+    st.success(f"Histórico anexado: {historico[1]}")
+    st.caption("O arquivo original está preservado nesta análise e não pode ser substituído.")
+
+if planos_origem:
+    st.subheader("Planos de ensino da instituição de origem")
+    st.caption("Arquivos anexados a esta análise.")
+    for plano_origem in planos_origem:
+        coluna_nome, coluna_remover = st.columns([5, 1])
+        coluna_nome.write(f"📄 {plano_origem[1]}")
+        if coluna_remover.button("Remover", key=f"remover_plano_origem_{plano_origem[0]}"):
+            try:
+                removido = remover_plano_origem(dados[0], plano_origem[0])
+            except psycopg.Error:
+                st.error("Não foi possível remover o plano. Tente novamente.")
+            else:
+                if removido:
+                    st.rerun()
+                st.warning("O arquivo não foi encontrado nesta análise.")
+
 with st.form(f"form_analise_{dados[0] if dados else 'nova'}"):
+    if not historico:
+        arquivo_historico = st.file_uploader(
+            "Histórico acadêmico *",
+            type=["pdf", "docx"],
+            help="Formatos aceitos: PDF e DOCX. O arquivo original será preservado.",
+            key=f"historico_{dados[0] if dados else 'nova'}",
+        )
+    else:
+        arquivo_historico = None
+    arquivos_planos = st.file_uploader(
+        "Planos de ensino da instituição de origem (opcional)",
+        type=["pdf", "docx"],
+        accept_multiple_files=True,
+        help="Você pode anexar vários arquivos PDF ou DOCX. Eles serão vinculados ao salvar a análise.",
+        key=(
+            f"planos_origem_{dados[0] if dados else 'nova'}_"
+            f"{'-'.join(str(plano[0]) for plano in planos_origem) or 'vazio'}"
+        ),
+    )
     semestre_ano = st.text_input(
         "Semestre/Ano de ingresso",
         value=(dados[3] or "") if dados else "",
@@ -179,8 +233,18 @@ with st.form(f"form_analise_{dados[0] if dados else 'nova'}"):
 if salvar_apenas or continuar:
     if aluno_id is None:
         st.error("Cadastre ou selecione um aluno para iniciar a análise.")
+    elif not historico and arquivo_historico is None:
+        st.error("Anexe o histórico acadêmico para salvar e continuar a análise.")
     else:
+        conteudo_historico = arquivo_historico.getvalue() if arquivo_historico else None
+        conteudos_planos = [
+            (arquivo.name, arquivo.getvalue()) for arquivo in arquivos_planos
+        ]
         try:
+            if arquivo_historico:
+                validar_historico(arquivo_historico.name, conteudo_historico)
+            for nome_arquivo, conteudo in conteudos_planos:
+                validar_plano_origem(nome_arquivo, conteudo)
             semestre_ano = normalizar_semestre_ano_ingresso(semestre_ano)
         except ValueError as erro:
             st.error(str(erro))
@@ -188,11 +252,27 @@ if salvar_apenas or continuar:
             try:
                 if dados:
                     salvo = atualizar_analise(dados[0], semestre_ano)
+                    if salvo and not historico:
+                        salvar_historico(
+                            dados[0], arquivo_historico.name, conteudo_historico
+                        )
+                    if salvo and conteudos_planos:
+                        salvar_planos_origem(dados[0], conteudos_planos)
                 else:
-                    nova_analise_id = criar_analise(aluno_id, semestre_ano)
+                    nova_analise_id = criar_analise_com_historico(
+                        aluno_id,
+                        semestre_ano,
+                        arquivo_historico.name,
+                        conteudo_historico,
+                        conteudos_planos,
+                    )
                     salvo = True
+            except ValueError as erro:
+                st.error(str(erro))
+            except psycopg.errors.UniqueViolation:
+                st.error("Esta análise já possui um histórico acadêmico anexado.")
             except psycopg.Error:
-                st.error("Não foi possível confirmar o salvamento da análise. Consulte as análises cadastradas antes de tentar salvar novamente.")
+                st.error("Não foi possível salvar a análise e os documentos. Consulte as análises antes de tentar novamente.")
             else:
                 if not salvo:
                     st.error("As alterações não foram salvas porque a análise não foi encontrada. Selecione outra análise na listagem.")
