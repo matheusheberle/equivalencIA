@@ -1,5 +1,6 @@
 import streamlit as st
 import psycopg
+import pandas as pd
 
 from database import (
     listar_disciplinas_elegiveis_para_aproveitamento,
@@ -66,7 +67,7 @@ else:
         ]
         with st.form(f"form_revisao_historico_{extracao[0]}"):
             dados_editados = st.data_editor(
-                registros_editor,
+                pd.DataFrame(registros_editor),
                 hide_index=True,
                 num_rows="fixed",
                 disabled=["ID", "Evidência no documento"],
