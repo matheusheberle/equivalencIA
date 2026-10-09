@@ -46,30 +46,26 @@ def pagina_inicio():
 
 paginas = [
     st.Page(pagina_inicio, title="Início", icon="🏠", default=True),
+    st.Page("pages/2_Iniciar_Analise.py", title="Iniciar Análise", icon="📝"),
     st.Page(
-        "pages/2_Iniciar_Analise.py",
-        title="Iniciar Análise",
-        icon="📝"
+        "pages/3_Curso_e_Matriz_Destino.py",
+        title="Curso e Matriz de Destino",
+        icon="🎓",
     ),
     st.Page(
         "pages/4_Origem_do_Aproveitamento.py",
         title="Origem do Aproveitamento",
-        icon="🏫"
-    ),
-    st.Page(
-        "pages/3_Curso_e_Matriz.py",
-        title="Curso e Matriz",
-        icon="🎓"
+        icon="🏫",
     ),
     st.Page(
         "pages/5_Continuacao_da_Analise.py",
         title="Continuação da Análise",
-        icon="➡️"
+        icon="➡️",
     ),
     st.Page(
-        "pages/1_Cursos_e_Matrizes.py",
-        title="Cursos e Matrizes",
-        icon="📚"
+        "pages/6_Gerenciar_Cursos_e_Matrizes.py",
+        title="Gerenciar Cursos e Matrizes",
+        icon="📚",
     ),
 ]
 

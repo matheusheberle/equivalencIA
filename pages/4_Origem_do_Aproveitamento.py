@@ -6,7 +6,7 @@ from navegacao import SITUACOES_ORIGEM, apresentar_etapa, confirmar_salvamento, 
 
 
 situacoes = SITUACOES_ORIGEM
-dados = apresentar_etapa(1)
+dados = apresentar_etapa(2)
 st.caption("Salve antes de voltar, trocar de análise ou navegar para outra página. Alterações não salvas podem ser descartadas.")
 st.caption("Informe a formação anterior do aluno. Não informe aqui o período de encaixe na UNIPAR.")
 
@@ -41,7 +41,7 @@ with st.form(f"form_origem_{dados[0]}"):
     continuar = avancar.form_submit_button("Avançar", type="primary")
 
 if voltar_clicked:
-    ir_para_etapa(0)
+    ir_para_etapa(1)
 
 if salvar_apenas or continuar:
     if situacao_origem not in situacoes:
@@ -59,9 +59,9 @@ if salvar_apenas or continuar:
         else:
             if not salvo:
                 st.error("As alterações não foram salvas porque a análise não foi encontrada. Selecione outra análise na listagem.")
-                st.page_link("pages/2_Nova_Analise.py", label="Ir para a listagem de análises")
+                st.page_link("pages/2_Iniciar_Analise.py", label="Ir para Iniciar Análise")
             else:
-                confirmar_salvamento("Origem do aproveitamento salva com sucesso.", 2 if continuar else 1)
+                confirmar_salvamento("Origem do aproveitamento salva com sucesso.", 3 if continuar else 2)
                 if continuar:
-                    ir_para_etapa(2)
+                    ir_para_etapa(3)
                 st.rerun()

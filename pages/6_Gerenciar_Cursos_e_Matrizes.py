@@ -4,7 +4,7 @@ import psycopg
 from database import listar_cursos, listar_matrizes_por_curso
 
 
-st.title("Cursos e matrizes curriculares")
+st.title("Gerenciar Cursos e Matrizes")
 
 try:
     cursos = listar_cursos()
